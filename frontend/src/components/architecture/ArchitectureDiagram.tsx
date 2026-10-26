@@ -197,7 +197,7 @@ export function ArchitectureDiagram({ initialNodes, initialEdges, onChange }: Ar
   )
 
   return (
-    <div className="h-[580px] w-full rounded-xl border border-slate-200 bg-slate-50/50 shadow-inner relative overflow-hidden">
+    <div className="h-[440px] sm:h-[580px] w-full rounded-xl border border-slate-200 bg-slate-50/50 shadow-inner relative overflow-hidden">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -234,7 +234,8 @@ export function ArchitectureDiagram({ initialNodes, initialEdges, onChange }: Ar
       {/* Floating Canvas Helper Bar */}
       <div className="absolute top-3 right-3 z-10 flex items-center gap-2 bg-white/90 backdrop-blur-xs px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs text-[11px] text-slate-600">
         <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-        <span>Smooth 60fps drag &bull; Drag handles to connect &bull; Select link + Delete to sever</span>
+        <span className="hidden sm:inline">Smooth 60fps drag &bull; Drag handles to connect &bull; Select link + Delete to sever</span>
+        <span className="sm:hidden font-medium">Interactive Topology</span>
       </div>
     </div>
   )

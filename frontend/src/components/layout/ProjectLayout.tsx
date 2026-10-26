@@ -14,9 +14,9 @@ export function ProjectLayout({ children, projectId, projectName }: ProjectLayou
   return (
     <div className="min-h-screen flex flex-col bg-slate-50/30">
       <Navbar />
-      <div className="flex flex-1">
+      <div className="flex flex-col md:flex-row flex-1 min-w-0">
         <Sidebar projectId={projectId} projectName={projectName} />
-        <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-3 sm:p-6 md:p-8 max-w-7xl w-full mx-auto min-w-0">
           {children}
         </main>
       </div>

@@ -207,109 +207,111 @@ export default function ArchitecturePage() {
               <span className="text-[11px] text-slate-400">Click &apos;Edit&apos; to customize descriptions & rationale</span>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50/50">
-                    <TableHead className="text-xs font-semibold">Component</TableHead>
-                    <TableHead className="text-xs font-semibold">Service</TableHead>
-                    <TableHead className="text-xs font-semibold">Region</TableHead>
-                    <TableHead className="text-xs font-semibold">Purpose</TableHead>
-                    <TableHead className="text-xs font-semibold">Selection Rationale</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentArch.services?.map((svc: any) => {
-                    const isEditing = editingSvcId === svc.id
+              <div className="overflow-x-auto w-full">
+                <Table className="min-w-[720px]">
+                  <TableHeader>
+                    <TableRow className="bg-slate-50/50">
+                      <TableHead className="text-xs font-semibold">Component</TableHead>
+                      <TableHead className="text-xs font-semibold">Service</TableHead>
+                      <TableHead className="text-xs font-semibold">Region</TableHead>
+                      <TableHead className="text-xs font-semibold">Purpose</TableHead>
+                      <TableHead className="text-xs font-semibold">Selection Rationale</TableHead>
+                      <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {currentArch.services?.map((svc: any) => {
+                      const isEditing = editingSvcId === svc.id
 
-                    return (
-                      <TableRow key={svc.id}>
-                        <TableCell className="font-semibold text-xs text-slate-900 min-w-[140px]">
-                          {isEditing ? (
-                            <Input
-                              type="text"
-                              value={editForm.name}
-                              onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                              className="text-xs h-8 bg-white border-blue-400"
-                            />
-                          ) : (
-                            svc.name
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs font-mono text-slate-600">
-                          {svc.service_name}
-                        </TableCell>
-                        <TableCell className="text-xs font-mono text-slate-700">
-                          {isEditing ? (
-                            <Input
-                              type="text"
-                              value={editForm.region}
-                              onChange={(e) => setEditForm((prev) => ({ ...prev, region: e.target.value }))}
-                              className="text-xs h-8 bg-white border-blue-400 w-28 font-mono"
-                            />
-                          ) : (
-                            svc.region
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs text-slate-600 min-w-[160px]">
-                          {isEditing ? (
-                            <Input
-                              type="text"
-                              value={editForm.purpose}
-                              onChange={(e) => setEditForm((prev) => ({ ...prev, purpose: e.target.value }))}
-                              className="text-xs h-8 bg-white border-blue-400"
-                            />
-                          ) : (
-                            svc.purpose
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs text-slate-500 leading-snug min-w-[200px]">
-                          {isEditing ? (
-                            <Textarea
-                              rows={2}
-                              value={editForm.rationale}
-                              onChange={(e) => setEditForm((prev) => ({ ...prev, rationale: e.target.value }))}
-                              className="text-xs bg-white border-blue-400 min-h-[50px]"
-                            />
-                          ) : (
-                            svc.rationale
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs text-right whitespace-nowrap">
-                          {isEditing ? (
-                            <div className="flex items-center justify-end gap-1.5">
+                      return (
+                        <TableRow key={svc.id}>
+                          <TableCell className="font-semibold text-xs text-slate-900 min-w-[140px]">
+                            {isEditing ? (
+                              <Input
+                                type="text"
+                                value={editForm.name}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                                className="text-xs h-8 bg-white border-blue-400"
+                              />
+                            ) : (
+                              svc.name
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono text-slate-600">
+                            {svc.service_name}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono text-slate-700">
+                            {isEditing ? (
+                              <Input
+                                type="text"
+                                value={editForm.region}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, region: e.target.value }))}
+                                className="text-xs h-8 bg-white border-blue-400 w-28 font-mono"
+                              />
+                            ) : (
+                              svc.region
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-600 min-w-[160px]">
+                            {isEditing ? (
+                              <Input
+                                type="text"
+                                value={editForm.purpose}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, purpose: e.target.value }))}
+                                className="text-xs h-8 bg-white border-blue-400"
+                              />
+                            ) : (
+                              svc.purpose
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-500 leading-snug min-w-[200px]">
+                            {isEditing ? (
+                              <Textarea
+                                rows={2}
+                                value={editForm.rationale}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, rationale: e.target.value }))}
+                                className="text-xs bg-white border-blue-400 min-h-[50px]"
+                              />
+                            ) : (
+                              svc.rationale
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-right whitespace-nowrap">
+                            {isEditing ? (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-[11px] px-2 bg-blue-600 hover:bg-blue-700 text-white"
+                                  onClick={() => saveEditService(svc.id)}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-[11px] px-2 text-slate-500"
+                                  onClick={() => setEditingSvcId(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
                               <Button
                                 size="sm"
-                                className="h-7 text-[11px] px-2 bg-blue-600 hover:bg-blue-700 text-white"
-                                onClick={() => saveEditService(svc.id)}
+                                variant="outline"
+                                className="h-7 text-[11px] px-2.5 text-slate-600 hover:text-blue-600 hover:border-blue-300"
+                                onClick={() => startEditService(svc)}
                               >
-                                Save
+                                Edit
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 text-[11px] px-2 text-slate-500"
-                                onClick={() => setEditingSvcId(null)}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-[11px] px-2.5 text-slate-600 hover:text-blue-600 hover:border-blue-300"
-                              onClick={() => startEditService(svc)}
-                            >
-                              Edit
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </div>

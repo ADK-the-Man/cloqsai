@@ -408,7 +408,7 @@ export default function EstimatesPage() {
             .filter((s) => s.scenario_type === 'recommended' || scenarios.length <= 2)
             .map((scen) => (
               <Card key={scen.id} className="border-slate-200 shadow-xs overflow-hidden">
-                <CardHeader className="p-3.5 bg-slate-50/80 border-b border-slate-200 flex flex-row items-center justify-between">
+                <CardHeader className="p-3.5 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="uppercase font-bold text-[10px] bg-white text-slate-800">
                       {scen.provider}
@@ -474,48 +474,50 @@ export default function EstimatesPage() {
                     )
                   })()}
 
-                  <Table>
-                    <TableHeader className="bg-slate-100/50 text-[11px] font-semibold text-slate-600">
-                      <TableRow>
-                        <TableHead className="w-[300px]">Resource Name</TableHead>
-                        <TableHead>Service</TableHead>
-                        <TableHead>Region</TableHead>
-                        <TableHead>SKU / Tier</TableHead>
-                        <TableHead className="w-[60px] text-center">Qty</TableHead>
-                        <TableHead>Availability Tier</TableHead>
-                        <TableHead className="text-right">Monthly (USD)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody className="text-xs divide-y divide-slate-100">
-                      {scen.resources.map((r: any) => (
-                        <TableRow key={r.id} className="hover:bg-slate-50/50">
-                          <TableCell className="font-medium text-slate-900">
-                            {r.resource_name}
-                          </TableCell>
-                          <TableCell>
-                            <span className="capitalize px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-medium">
-                              {r.service_family || r.service_name || 'service'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="font-mono text-slate-600 text-[11px]">
-                            {r.region || 'us-east-2'}
-                          </TableCell>
-                          <TableCell className="font-mono font-semibold text-slate-800 text-[11px]">
-                            {r.sku}
-                          </TableCell>
-                          <TableCell className="text-center font-semibold text-slate-800">
-                            {r.quantity}
-                          </TableCell>
-                          <TableCell className="text-slate-500 text-[11px]">
-                            {r.availability_config || 'Standard'}
-                          </TableCell>
-                          <TableCell className="text-right font-mono font-semibold text-slate-900">
-                            ${Number(r.monthly_cost_usd || 0).toFixed(2)}
-                          </TableCell>
+                  <div className="overflow-x-auto w-full">
+                    <Table className="min-w-[800px]">
+                      <TableHeader className="bg-slate-100/50 text-[11px] font-semibold text-slate-600">
+                        <TableRow>
+                          <TableHead className="w-[300px]">Resource Name</TableHead>
+                          <TableHead>Service</TableHead>
+                          <TableHead>Region</TableHead>
+                          <TableHead>SKU / Tier</TableHead>
+                          <TableHead className="w-[60px] text-center">Qty</TableHead>
+                          <TableHead>Availability Tier</TableHead>
+                          <TableHead className="text-right">Monthly (USD)</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody className="text-xs divide-y divide-slate-100">
+                        {scen.resources.map((r: any) => (
+                          <TableRow key={r.id} className="hover:bg-slate-50/50">
+                            <TableCell className="font-medium text-slate-900">
+                              {r.resource_name}
+                            </TableCell>
+                            <TableCell>
+                              <span className="capitalize px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-medium">
+                                {r.service_family || r.service_name || 'service'}
+                              </span>
+                            </TableCell>
+                            <TableCell className="font-mono text-slate-600 text-[11px]">
+                              {r.region || 'us-east-2'}
+                            </TableCell>
+                            <TableCell className="font-mono font-semibold text-slate-800 text-[11px]">
+                              {r.sku}
+                            </TableCell>
+                            <TableCell className="text-center font-semibold text-slate-800">
+                              {r.quantity}
+                            </TableCell>
+                            <TableCell className="text-slate-500 text-[11px]">
+                              {r.availability_config || 'Standard'}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-semibold text-slate-900">
+                              ${Number(r.monthly_cost_usd || 0).toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </CardContent>
               </Card>
             ))}

@@ -384,7 +384,8 @@ export default function ScenariosPage() {
               </CardHeader>
 
               <CardContent className="p-0">
-                <Table>
+                <div className="overflow-x-auto w-full">
+                  <Table className="min-w-[880px]">
                   <TableHeader className="bg-slate-100/60 text-[11px] font-semibold text-slate-700">
                     <TableRow>
                       <TableHead className="w-[280px]">Resource Name</TableHead>
@@ -506,7 +507,8 @@ export default function ScenariosPage() {
                     })}
                   </TableBody>
                 </Table>
-              </CardContent>
+              </div>
+            </CardContent>
             </Card>
           ))}
         </div>

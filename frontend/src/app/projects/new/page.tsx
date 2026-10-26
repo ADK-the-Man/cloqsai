@@ -94,7 +94,7 @@ export default function NewProjectPage() {
     <div className="min-h-screen bg-slate-50/50 flex flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-8">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-8">
         <div className="mb-6">
           <Link
             href="/dashboard"
@@ -137,7 +137,7 @@ export default function NewProjectPage() {
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-700">Target Cloud Providers</Label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
                     { key: 'both', label: 'Both Clouds', desc: 'AWS & Azure Comparison', icon: Layers },
                     { key: 'aws', label: 'Amazon AWS', desc: 'AWS Pricing Calculator', icon: Cloud },

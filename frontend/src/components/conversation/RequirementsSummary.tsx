@@ -122,7 +122,7 @@ export function RequirementsSummary({ collected, completeness, isComplete = fals
               <div className="flex items-center gap-1.5">
                 {isFilled ? (
                   <>
-                    <span className="font-semibold text-slate-800 capitalize max-w-[185px] truncate text-right">
+                    <span className="font-semibold text-slate-800 capitalize max-w-[130px] sm:max-w-[185px] truncate text-right">
                       {String(f.val)}
                     </span>
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />

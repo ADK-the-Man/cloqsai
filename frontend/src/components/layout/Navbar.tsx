@@ -19,10 +19,10 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-      <div className="container flex h-16 items-center justify-between px-6">
+      <div className="container flex h-16 items-center justify-between px-3 sm:px-6">
         <div className="flex items-center gap-6">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm shrink-0">
               <Cloud className="h-5 w-5" />
             </div>
             <div className="flex flex-col">
@@ -34,7 +34,7 @@ export function Navbar() {
                   AI
                 </span>
               </div>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-600">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 hidden sm:inline">
                 Cloud Architecture & Cost Intelligence
               </span>
             </div>

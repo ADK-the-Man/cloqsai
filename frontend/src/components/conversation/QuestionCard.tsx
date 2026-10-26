@@ -94,7 +94,7 @@ export function QuestionCard({ question, onAnswer, disabled }: QuestionCardProps
             </Button>
           </form>
 
-          <div className="flex items-center justify-between pt-1">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 pt-1">
             <span className="text-[11px] text-slate-400">
               Pick an option above or type your workload parameters
             </span>
