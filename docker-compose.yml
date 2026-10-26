@@ -58,6 +58,7 @@ services:
       ARTIFACTS_DIR: /app/artifacts
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://98.88.34.62:3000}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      LOGIN_ENABLED: "true"
     volumes:
       - artifacts_data:/app/artifacts
       - ./backend:/app  # hot reload in dev

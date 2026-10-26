@@ -79,7 +79,7 @@ try:
         PLAYWRIGHT_HEADLESS: bool = True
         AZURE_RETAIL_PRICES_URL: str = "https://prices.azure.com/api/retail/prices"
         AZURE_RETAIL_PRICES_API_VERSION: str = "2023-01-01-preview"
-        LOGIN_ENABLED: bool = False
+        LOGIN_ENABLED: bool = True
         GOOGLE_CLIENT_ID: Optional[str] = None
         GOOGLE_CLIENT_SECRET: Optional[str] = None
         MICROSOFT_CLIENT_ID: Optional[str] = None
@@ -111,7 +111,7 @@ except ImportError:
         PLAYWRIGHT_HEADLESS: bool = True
         AZURE_RETAIL_PRICES_URL: str = "https://prices.azure.com/api/retail/prices"
         AZURE_RETAIL_PRICES_API_VERSION: str = "2023-01-01-preview"
-        LOGIN_ENABLED: bool = False
+        LOGIN_ENABLED: bool = True
         GOOGLE_CLIENT_ID: Optional[str] = None
         GOOGLE_CLIENT_SECRET: Optional[str] = None
         MICROSOFT_CLIENT_ID: Optional[str] = None
@@ -132,7 +132,7 @@ def get_settings() -> Settings:
         os.getenv("LOGIN_ENABLED")
         or os.getenv("login_enabled")
         or os.getenv("NEXT_PUBLIC_LOGIN_ENABLED")
-        or "false"
+        or "true"
     ).strip().lower()
     s.LOGIN_ENABLED = raw_login in ("true", "1", "yes")
 

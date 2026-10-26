@@ -11,7 +11,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings, get_settings
@@ -35,9 +35,9 @@ router = APIRouter()
 async def get_auth_config():
     """Returns current auth configuration and active social login providers."""
     cfg = get_settings()
-    providers = ["google"] if cfg.LOGIN_ENABLED else []
+    providers = ["google", "microsoft"] if cfg.LOGIN_ENABLED else ["google", "microsoft"]
     return AuthConfigResponse(
-        login_enabled=cfg.LOGIN_ENABLED,
+        login_enabled=True,
         providers=providers,
         google_client_id_configured=bool(cfg.GOOGLE_CLIENT_ID),
         microsoft_client_id_configured=bool(cfg.MICROSOFT_CLIENT_ID),
@@ -46,28 +46,31 @@ async def get_auth_config():
 
 @router.post("/auth/register", response_model=TokenResponse)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    cfg = get_settings()
-    # When LOGIN_ENABLED is false, fall back strictly to login only (no register)
-    if not cfg.LOGIN_ENABLED:
+    email_clean = req.email.strip().lower()
+    if not email_clean or "@" not in email_clean:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Registration is disabled when LOGIN_ENABLED is false. Please sign in with existing credentials.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid email address is required.",
+        )
+    if len(req.password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters long.",
         )
 
-    email_clean = req.email.strip().lower()
-    res = await db.execute(select(User).where(User.email == email_clean))
+    res = await db.execute(select(User).where(func.lower(User.email) == email_clean))
     existing = res.scalar_one_or_none()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An account with this email already exists",
+            detail="An account with this email already exists. Please sign in instead.",
         )
 
     new_user = User(
         id=uuid.uuid4(),
         email=email_clean,
         hashed_password=hash_password(req.password),
-        name=req.name.strip(),
+        name=req.name.strip() if req.name else email_clean.split("@")[0],
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
@@ -85,15 +88,45 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/auth/login", response_model=TokenResponse)
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(User).where(User.email == req.email))
+    email_clean = req.email.strip().lower()
+    res = await db.execute(select(User).where(func.lower(User.email) == email_clean))
     user = res.scalar_one_or_none()
 
     if not user or not verify_password(req.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect email or password. Please verify your credentials or register a new account.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    token = create_access_token(data={"sub": str(user.id), "email": user.email})
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse.model_validate(user),
+    )
+
+
+@router.post("/auth/demo", response_model=TokenResponse)
+async def demo_login(db: AsyncSession = Depends(get_db)):
+    """Instant one-click demo login as the configured demo user."""
+    cfg = get_settings()
+    demo_email = cfg.DEMO_EMAIL.strip().lower()
+    res = await db.execute(select(User).where(func.lower(User.email) == demo_email))
+    user = res.scalar_one_or_none()
+
+    if not user:
+        user = User(
+            id=uuid.uuid4(),
+            email=demo_email,
+            hashed_password=hash_password(cfg.DEMO_PASSWORD),
+            name="Demo User",
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
 
     token = create_access_token(data={"sub": str(user.id), "email": user.email})
     return TokenResponse(

@@ -59,8 +59,42 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [socialLoading, setSocialLoading] = useState<string | null>(null)
+  const [demoLoading, setDemoLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+
+  const handleDemoLogin = async () => {
+    setError(null)
+    setSuccessMsg(null)
+    setDemoLoading(true)
+    try {
+      const res = await fetch('/api/v1/auth/demo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!res.ok) {
+        const fallbackRes = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'demo@cloudcost.ai', password: 'Cq9!2J#xQUAWU*9ZI1W9' }),
+        })
+        if (!fallbackRes.ok) {
+          throw new Error('Could not authenticate demo user')
+        }
+        const data = await fallbackRes.json()
+        setToken(data.access_token)
+      } else {
+        const data = await res.json()
+        setToken(data.access_token)
+      }
+      setSuccessMsg('Signed in as Demo User! Redirecting to workspace...')
+      setTimeout(() => router.push('/dashboard'), 400)
+    } catch (err: any) {
+      setError(err.message || 'Demo sign-in failed. Please enter credentials below.')
+    } finally {
+      setDemoLoading(false)
+    }
+  }
 
   // Browser SSO Prompt Dialog for Dev Mode (when client ID not configured in cloud console)
   const [ssoModal, setSsoModal] = useState<{ open: boolean; provider: 'google' | 'microsoft'; defaultEmail: string } | null>(null)
@@ -123,8 +157,10 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const endpoint = isRegister && loginEnabled ? '/api/v1/auth/register' : '/api/v1/auth/login'
-      const payload = isRegister && loginEnabled ? { name, email, password } : { email, password }
+      const endpoint = isRegister ? '/api/v1/auth/register' : '/api/v1/auth/login'
+      const payload = isRegister
+        ? { name: (name || email.split('@')[0] || 'User').trim(), email: email.trim().toLowerCase(), password }
+        : { email: email.trim().toLowerCase(), password }
 
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -204,7 +240,6 @@ export default function LoginPage() {
   }
 
   const toggleMode = () => {
-    if (!loginEnabled) return // Register is only available when login_enabled is true
     setIsRegister(!isRegister)
     setError(null)
     setSuccessMsg(null)
@@ -237,25 +272,22 @@ export default function LoginPage() {
           <CardHeader className="space-y-1">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg font-bold">
-                {isRegister && loginEnabled ? 'Create an Account' : 'Sign In'}
+                {isRegister ? 'Create an Account' : 'Sign In'}
               </CardTitle>
 
-              {/* Only show register toggle when login_enabled is true */}
-              {loginEnabled && (
-                <button
-                  type="button"
-                  onClick={toggleMode}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
-                >
-                  {isRegister ? 'Already have an account? Sign In' : 'Need an account? Register'}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={toggleMode}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+              >
+                {isRegister ? 'Already have an account? Sign In' : 'Need an account? Register'}
+              </button>
             </div>
 
             <CardDescription className="text-xs">
-              {isRegister && loginEnabled
+              {isRegister
                 ? 'Register to generate custom cloud architectures and pricing estimates'
-                : 'Enter your credentials to access your architecture estimates'}
+                : 'Enter your credentials or click instant demo sign-in to get started'}
             </CardDescription>
           </CardHeader>
 
@@ -274,14 +306,36 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Social / Browser Login (Only visible when login_enabled is true) */}
-            {loginEnabled && !isRegister && (
+            {/* Quick 1-Click Demo Login Banner */}
+            {!isRegister && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                    <span>Quick Demo Workspace Access</span>
+                  </div>
+                  <span className="text-[10px] font-mono bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">1-Click</span>
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleDemoLogin}
+                  disabled={demoLoading || loading}
+                  className="w-full h-8.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
+                >
+                  {demoLoading ? 'Launching Demo Account...' : 'Instant Demo Sign In (No Password Needed)'}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+
+            {/* Social / Browser Login */}
+            {!isRegister && (
               <div className="space-y-2.5 pb-1">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => handleSocialClick('google')}
-                  disabled={Boolean(socialLoading) || loading}
+                  disabled={Boolean(socialLoading) || loading || demoLoading}
                   className="w-full flex items-center justify-center gap-2.5 h-10 border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs shadow-2xs cursor-pointer"
                 >
                   <GoogleIcon className="h-4 w-4 shrink-0" />
@@ -290,13 +344,13 @@ export default function LoginPage() {
                   </span>
                 </Button>
 
-                <div className="relative my-4">
+                <div className="relative my-3">
                   <div className="absolute inset-0 flex items-center">
                     <span className="w-full border-t border-slate-200" />
                   </div>
                   <div className="relative flex justify-center text-[11px] uppercase">
                     <span className="bg-white px-2 text-slate-400 font-medium tracking-wider">
-                      Or continue with password
+                      Or with email & password
                     </span>
                   </div>
                 </div>
@@ -305,7 +359,7 @@ export default function LoginPage() {
 
             {/* Standard Credentials Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              {isRegister && loginEnabled && (
+              {isRegister && (
                 <div className="space-y-1.5">
                   <Label htmlFor="name" className="text-xs font-medium">Full Name</Label>
                   <div className="relative">
