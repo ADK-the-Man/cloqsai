@@ -175,9 +175,12 @@ export function useJobStatus(jobId: string | null) {
   const connect = useCallback(() => {
     if (!jobId) return
 
-    const wsUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001')
-      .replace('http://', 'ws://')
-      .replace('https://', 'wss://')
+    const defaultWsHost = typeof window !== 'undefined'
+      ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
+      : 'ws://localhost:8001'
+    const wsUrl = (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.includes('localhost'))
+      ? process.env.NEXT_PUBLIC_API_URL.replace('http://', 'ws://').replace('https://', 'wss://')
+      : defaultWsHost
 
     const token = getToken()
     const ws = new WebSocket(`${wsUrl}/ws/jobs/${jobId}?token=${token ?? ''}`)

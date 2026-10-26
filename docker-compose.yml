@@ -56,7 +56,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://cloudcost:cloudcost_dev@postgres:5432/cloudcost_db
       AWS_MCP_URL: http://aws-mcp-sidecar:8000
       ARTIFACTS_DIR: /app/artifacts
-      CORS_ORIGINS: http://localhost:3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://98.88.34.62:3000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     volumes:
       - artifacts_data:/app/artifacts
       - ./backend:/app  # hot reload in dev

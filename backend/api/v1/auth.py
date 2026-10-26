@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
@@ -177,22 +177,64 @@ async def browser_session_login(req: BrowserSessionLoginRequest, db: AsyncSessio
     )
 
 
+def resolve_frontend_url(request: Request) -> str:
+    """
+    Dynamically resolves the frontend base URL based on incoming request headers
+    (such as X-Forwarded-Host, Host, Referer) or falls back to configured FRONTEND_URL.
+    This guarantees OAuth redirects return to the exact same host/IP the user is browsing from.
+    """
+    cfg = get_settings()
+
+    # 1. First check reverse proxy headers (Next.js rewrites)
+    forwarded_host = request.headers.get("x-forwarded-host")
+    forwarded_proto = request.headers.get("x-forwarded-proto", "http")
+    if forwarded_host and "backend" not in forwarded_host and "8001" not in forwarded_host:
+        return f"{forwarded_proto}://{forwarded_host}".rstrip("/")
+
+    # 2. Check Referer or Origin header
+    origin = request.headers.get("origin")
+    if origin and "backend" not in origin and "8001" not in origin:
+        return origin.rstrip("/")
+
+    referer = request.headers.get("referer")
+    if referer:
+        try:
+            parsed = urllib.parse.urlparse(referer)
+            if parsed.netloc and "backend" not in parsed.netloc and "8001" not in parsed.netloc:
+                return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+        except Exception:
+            pass
+
+    # 3. If FRONTEND_URL is explicitly configured to a non-localhost address, use it
+    if cfg.FRONTEND_URL and "localhost" not in cfg.FRONTEND_URL and "127.0.0.1" not in cfg.FRONTEND_URL:
+        return cfg.FRONTEND_URL.rstrip("/")
+
+    # 4. Direct Host header check
+    host = request.headers.get("host")
+    if host and "backend" not in host and "8001" not in host:
+        return f"{forwarded_proto}://{host}".rstrip("/")
+
+    return (cfg.FRONTEND_URL or "http://localhost:3000").rstrip("/")
+
+
 @router.get("/auth/oauth/{provider}/authorize")
-async def oauth_authorize(provider: str):
+async def oauth_authorize(provider: str, request: Request):
     """
     Initiates standard OAuth 2.0 flow for Google or Microsoft.
     """
     cfg = get_settings()
+    frontend_url = resolve_frontend_url(request)
+
     if not cfg.LOGIN_ENABLED:
         raise HTTPException(status_code=403, detail="Social login is disabled.")
 
     provider_clean = provider.strip().lower()
-    redirect_uri = f"{cfg.FRONTEND_URL}/api/v1/auth/oauth/{provider_clean}/callback"
+    redirect_uri = f"{frontend_url}/api/v1/auth/oauth/{provider_clean}/callback"
 
     if provider_clean == "google":
         if not cfg.GOOGLE_CLIENT_ID:
             # Fall back to frontend browser login modal if client ID is not yet provisioned in Google Cloud
-            return RedirectResponse(url=f"{cfg.FRONTEND_URL}/login?prompt_browser_login=google")
+            return RedirectResponse(url=f"{frontend_url}/login?prompt_browser_login=google")
         params = {
             "client_id": cfg.GOOGLE_CLIENT_ID,
             "redirect_uri": redirect_uri,
@@ -205,7 +247,7 @@ async def oauth_authorize(provider: str):
 
     elif provider_clean == "microsoft":
         if not cfg.MICROSOFT_CLIENT_ID:
-            return RedirectResponse(url=f"{cfg.FRONTEND_URL}/login?prompt_browser_login=microsoft")
+            return RedirectResponse(url=f"{frontend_url}/login?prompt_browser_login=microsoft")
         params = {
             "client_id": cfg.MICROSOFT_CLIENT_ID,
             "redirect_uri": redirect_uri,
@@ -223,6 +265,7 @@ async def oauth_authorize(provider: str):
 @router.get("/auth/oauth/{provider}/callback")
 async def oauth_callback(
     provider: str,
+    request: Request,
     code: Optional[str] = Query(None),
     error: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
@@ -231,15 +274,17 @@ async def oauth_callback(
     Handles OAuth 2.0 exchange callback from Google or Microsoft.
     """
     cfg = get_settings()
+    frontend_url = resolve_frontend_url(request)
+
     if not cfg.LOGIN_ENABLED:
-        return RedirectResponse(url=f"{cfg.FRONTEND_URL}/login?error=OAuth+disabled")
+        return RedirectResponse(url=f"{frontend_url}/login?error=OAuth+disabled")
 
     if error or not code:
         logger.warning(f"OAuth callback received error: {error}")
-        return RedirectResponse(url=f"{cfg.FRONTEND_URL}/login?error={urllib.parse.quote(error or 'Missing authorization code')}")
+        return RedirectResponse(url=f"{frontend_url}/login?error={urllib.parse.quote(error or 'Missing authorization code')}")
 
     provider_clean = provider.strip().lower()
-    redirect_uri = f"{cfg.FRONTEND_URL}/api/v1/auth/oauth/{provider_clean}/callback"
+    redirect_uri = f"{frontend_url}/api/v1/auth/oauth/{provider_clean}/callback"
     email: Optional[str] = None
     name: Optional[str] = None
 
@@ -294,7 +339,7 @@ async def oauth_callback(
                 name = info.get("displayName")
 
             if not email:
-                return RedirectResponse(url=f"{cfg.FRONTEND_URL}/login?error=Could+not+retrieve+email+from+provider")
+                return RedirectResponse(url=f"{frontend_url}/login?error=Could+not+retrieve+email+from+provider")
 
             email_clean = email.strip().lower()
             res = await db.execute(select(User).where(User.email == email_clean))
@@ -314,8 +359,8 @@ async def oauth_callback(
                 await db.refresh(user)
 
             jwt_token = create_access_token(data={"sub": str(user.id), "email": user.email})
-            return RedirectResponse(url=f"{cfg.FRONTEND_URL}/login?token={jwt_token}")
+            return RedirectResponse(url=f"{frontend_url}/login?token={jwt_token}")
 
     except Exception as exc:
         logger.exception(f"OAuth exchange failed: {exc}")
-        return RedirectResponse(url=f"{cfg.FRONTEND_URL}/login?error=OAuth+authentication+failed")
+        return RedirectResponse(url=f"{frontend_url}/login?error=OAuth+authentication+failed")

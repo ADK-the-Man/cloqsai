@@ -1,7 +1,18 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { getToken, removeToken } from './auth'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+const getBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const envUrl = process.env.NEXT_PUBLIC_API_URL
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl
+    }
+    return '/api/v1'
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+}
+
+const API_URL = getBaseUrl()
 
 export const apiClient = axios.create({
   baseURL: API_URL,
