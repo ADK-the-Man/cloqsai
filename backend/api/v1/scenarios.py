@@ -68,7 +68,18 @@ async def generate_project_scenarios(
 
     conv_res = await db.execute(select(Conversation).where(Conversation.project_id == project.id))
     conv = conv_res.scalar_one_or_none()
-    req = conv.collected_requirements if conv else {}
+    req = dict(conv.collected_requirements or {}) if conv else {}
+
+    # Enrich req with project description, prompt, and conversation chat history
+    chat_parts = []
+    if project.description:
+        chat_parts.append(project.description)
+    if conv and conv.messages:
+        for m in conv.messages:
+            if isinstance(m, dict) and m.get("content"):
+                chat_parts.append(str(m["content"]))
+    existing_raw = req.get("raw_text", "")
+    req["raw_text"] = f"{existing_raw} {' '.join(chat_parts)}"
 
     providers_to_generate = []
     sel = (project.provider_selection or "both").lower()

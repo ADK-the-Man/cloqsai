@@ -70,6 +70,22 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         else:
             region = "us-east-1"
 
+    s3_keywords = [
+        "s3", "bucket", "blob", "object storage", "upload", "uploads", "uploading",
+        "file", "files", "attachment", "attachments", "document", "documents",
+        "media", "photo", "photos", "image", "images", "asset", "assets",
+        "video", "videos", "pdf", "pdfs", "storage pool", "s3_lifecycle",
+        "s3_count", "storage_total_gb", "file_storage", "binary", "data lake"
+    ]
+    has_s3 = (
+        any(k in raw_text for k in s3_keywords)
+        or bool(req.get("has_s3"))
+        or bool(req.get("s3_lifecycle"))
+        or bool(req.get("file_upload"))
+        or bool(req.get("storage_total_gb"))
+        or ("storage" in req and "db" not in str(req.get("storage", "")).lower())
+    )
+
     signals = {
         "region": region,
         "has_eks": any(k in raw_text for k in ["eks", "aks", "kubernetes", "k8s", "pod", "cluster"]),
@@ -77,8 +93,8 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         "has_lambda": "lambda" in raw_text or "serverless" in raw_text or "function" in raw_text,
         "has_sqs": "sqs" in raw_text or "servicebus" in raw_text or "service bus" in raw_text or "message queue" in raw_text,
         "has_rds": "rds" in raw_text or "postgres" in raw_text or "mysql" in raw_text or "database" in raw_text or True,
-        "has_s3": "s3" in raw_text or "bucket" in raw_text or "blob" in raw_text or "object storage" in raw_text or "s3 bucket" in raw_text,
-        "s3_count": 2 if ("two s3" in raw_text or "2 s3" in raw_text or "2 buckets" in raw_text or "two bucket" in raw_text) else 1,
+        "has_s3": has_s3,
+        "s3_count": 2 if ("two s3" in raw_text or "2 s3" in raw_text or "2 buckets" in raw_text or "two bucket" in raw_text or "multiple bucket" in raw_text) else 1,
         "node_count": 2 if ("two linux nodes" in raw_text or "2 linux nodes" in raw_text or "two nodes" in raw_text or "2 nodes" in raw_text or "two linux" in raw_text or "2 linux" in raw_text) else 2,
         "pod_count": 4 if ("4 pods" in raw_text or "four pods" in raw_text) else 4,
         "pod_memory": "2Gi" if ("2gi" in raw_text or "2 gb" in raw_text) else "1Gi",

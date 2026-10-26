@@ -82,8 +82,10 @@ export function RequirementsSummary({ collected, completeness, isComplete = fals
     fields.push({ key: 'opensearch', label: 'Search Domain', val: osLabel })
   }
 
-  if (collected.raw_text?.toLowerCase().includes('s3') || collected.s3_count || collected.s3_lifecycle) {
-    fields.push({ key: 's3', label: 'Object Storage', val: 'Amazon S3 Standard' })
+  const rawLower = (collected.raw_text || '').toLowerCase()
+  const hasStorageKeywords = ['s3', 'bucket', 'blob', 'upload', 'file', 'files', 'attachment', 'document', 'media', 'image', 'asset', 'storage'].some((k) => rawLower.includes(k))
+  if (hasStorageKeywords || collected.s3_count || collected.s3_lifecycle || collected.file_upload) {
+    fields.push({ key: 's3', label: 'Object Storage', val: 'Amazon S3 / Azure Blob' })
   }
 
   // If validation is complete, score is 100%
