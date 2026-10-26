@@ -36,7 +36,7 @@ Unlike generic cost estimators that rely on static heuristics or manual spreadsh
 ```mermaid
 flowchart TD
     subgraph Client["Frontend (Next.js 14 + Tailwind + ReactFlow)"]
-        UI["Modern Web UI / Spatial 3D Theme"]
+        UI["Modern Enterprise UI (Classic Light)"]
         Chat["Interactive Clarification Chat"]
         Flow["60fps Topology Visualizer (4-Way Handles)"]
         Scen["Scenario Matrix & SKU Editor"]
@@ -102,9 +102,14 @@ Resolves the common discrepancy between cloud calculators and actual real-world 
 - **Tier 2 (Operational Telemetry)**: CloudWatch / Azure Monitor metrics, Container Insights, log ingestion, and alarms.
 - **Tier 3 (Total Monthly Enterprise TCO)**: True comprehensive operational budget ($\text{Infra} + \text{Ops}$).
 
-### 4. 🔮 Dual-Theme Visual Experience
-- **Enterprise Light Theme**: Clean, accessible, slate-and-blue interface tailored for executive presentations and client reviews.
-- **Spatial UI / Futuristic Mode**: Glassmorphic neon-accented cyberpunk UI with ambient glow, responsive floating quick-switch dock, and futuristic styling.
+### 4. 🎨 Classic Light Enterprise Design System
+- **Executive-Grade Usability**: Standardized on a high-clarity, high-contrast Classic Light palette (slate-900 typography, crisp borders, and deep blue accent tokens) engineered for executive reviews, architecture boards, and FinOps audit workflows.
+- **Accessible Data Density**: High-density resource tables, interactive node topology, and unambiguous pricing breakdown without visual distraction.
+
+### 5. 🔐 Enterprise Authentication & Social SSO
+- **Dual Authentication Modes**:
+  - **Credentials Mode (`LOGIN_ENABLED=false`)**: Single-form credentials login for internal corporate networks and sandbox environments.
+  - **Google SSO Mode (`LOGIN_ENABLED=true`)**: Direct browser OAuth session with Google (Gmail & Google Workspace), allowing architects to authenticate with single-click verification.
 
 ---
 
@@ -116,16 +121,17 @@ Resolves the common discrepancy between cloud calculators and actual real-world 
 
 ### 1. Clone & Configure Environment
 ```bash
-git clone https://github.com/your-username/stratos-ai.git
-cd stratos-ai
+git clone https://github.com/your-username/cloqs-ai.git
+cd cloqs-ai
 cp .env.example .env
 ```
-Ensure `.env` contains your Anthropic API Key and database credentials:
+Ensure `.env` contains your Anthropic API Key, database credentials, and auth configuration:
 ```env
 ANTHROPIC_API_KEY=sk-ant-api03-...
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/cloudcost
+DATABASE_URL=postgresql+asyncpg://cloudcost:your_db_password_here@postgres:5432/cloudcost_db
 DEMO_EMAIL=demo@cloudcost.ai
-DEMO_PASSWORD=changeme
+DEMO_PASSWORD=your_secure_password_here
+LOGIN_ENABLED=true
 ```
 
 ### 2. Launch with Docker Compose
@@ -138,7 +144,7 @@ docker compose up -d --build
 - **FastAPI OpenAPI Docs**: [http://localhost:8001/docs](http://localhost:8001/docs)
 - **AWS MCP Server**: [http://localhost:8000](http://localhost:8000)
 
-*Default Login Credentials*: `demo@cloudcost.ai` / `changeme`
+*Authentication*: Sign in with Google (Gmail) when `LOGIN_ENABLED=true`, or use your configured `DEMO_EMAIL` / `DEMO_PASSWORD` credentials.
 
 ---
 
@@ -162,7 +168,7 @@ docker compose up -d --build
         │   ├── architecture/    # ReactFlow 60fps Topology Visualizer
         │   ├── conversation/    # Requirements Chat & Clarification cards
         │   ├── estimates/       # Job progress & Enterprise TCO breakdown
-        │   ├── layout/          # Navbar, Sidebar, SpatialThemeToggle
+        │   ├── layout/          # Navbar, Sidebar, Navigation
         │   └── scenarios/       # AddServiceModal (Delta Updates), comparison matrix
         └── lib/                 # Auth tokens, API client, custom hooks
 ```

@@ -4,7 +4,7 @@ import httpx
 async def main():
     async with httpx.AsyncClient(base_url="http://localhost:8001/api/v1", timeout=30.0) as client:
         # 1. Login
-        login_res = await client.post("/auth/login", json={"email": "demo@cloudcost.ai", "password": "changeme123"})
+        login_res = await client.post("/auth/login", json={"email": "demo@cloudcost.ai", "password": "Cq9!2J#xQUAWU*9ZI1W9"})
         assert login_res.status_code == 200, f"Login failed: {login_res.text}"
         token = login_res.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}

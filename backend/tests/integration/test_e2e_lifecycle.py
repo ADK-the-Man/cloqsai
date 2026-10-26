@@ -46,7 +46,7 @@ async def run_e2e_suite():
         # ── 1. AUTHENTICATION & SECURITY AUDIT ───────────────────────────────────
         print("\n[SUITE 1: Auth & Token Lifecycle]")
         # 1.1 Valid login
-        login_payload = {"email": "demo@cloudcost.ai", "password": "changeme123"}
+        login_payload = {"email": "demo@cloudcost.ai", "password": "Cq9!2J#xQUAWU*9ZI1W9"}
         res = await client.post(f"{BASE_URL}/auth/login", json=login_payload)
         if res.status_code == 200 and "access_token" in res.json():
             token = res.json()["access_token"]

@@ -208,14 +208,9 @@ export default function LoginPage() {
     setIsRegister(!isRegister)
     setError(null)
     setSuccessMsg(null)
-    if (!isRegister) {
-      setName('')
-      setEmail('')
-      setPassword('')
-    } else {
-      setEmail('demo@cloudcost.ai')
-      setPassword('changeme123')
-    }
+    setName('')
+    setEmail('')
+    setPassword('')
   }
 
   return (

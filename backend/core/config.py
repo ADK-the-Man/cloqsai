@@ -69,7 +69,7 @@ try:
         LLM_TIMEOUT_SECONDS: int = 120
         LLM_MAX_RETRIES: int = 3
         DEMO_EMAIL: str = "demo@cloudcost.ai"
-        DEMO_PASSWORD: str = "changeme123"
+        DEMO_PASSWORD: str = "Cq9!2J#xQUAWU*9ZI1W9"
         CORS_ORIGINS: str = "http://localhost:3000"
         ARTIFACTS_DIR: str = os.path.join(os.path.dirname(__file__), "..", "..", "artifacts")
         ARTIFACT_MAX_AGE_DAYS: int = 30
@@ -101,7 +101,7 @@ except ImportError:
         LLM_TIMEOUT_SECONDS: int = int(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
         LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
         DEMO_EMAIL: str = os.getenv("DEMO_EMAIL", "demo@cloudcost.ai")
-        DEMO_PASSWORD: str = os.getenv("DEMO_PASSWORD", "changeme123")
+        DEMO_PASSWORD: str = os.getenv("DEMO_PASSWORD", "Cq9!2J#xQUAWU*9ZI1W9")
         CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
         ARTIFACTS_DIR: str = os.getenv("ARTIFACTS_DIR", os.path.join(os.path.dirname(__file__), "..", "..", "artifacts"))
         ARTIFACT_MAX_AGE_DAYS: int = int(os.getenv("ARTIFACT_MAX_AGE_DAYS", "30"))
