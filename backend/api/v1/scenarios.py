@@ -567,9 +567,75 @@ def map_resource_to_other_provider(req: AddResourceRequest, src_provider: str, d
     sku = (req.sku or "").lower()
     cfg = dict(req.config or {})
 
-    if dst_provider == "azure":
+    if dst_provider.lower() == "azure":
         region = "eastus"
-        if fam == "storage" or "s3" in res_name or "s3" in sku or "bucket" in res_name:
+        if "airflow" in res_name or "mwaa" in res_name or "airflow" in sku:
+            return {
+                "resource_name": "Azure Data Factory (Managed Apache Airflow)",
+                "service_family": "compute",
+                "service_name": "Azure Data Factory",
+                "region": region,
+                "sku": "Airflow Small (2.0 vCPU, 4 GB RAM)",
+                "quantity": req.quantity,
+                "config": cfg,
+                "availability_config": "Fully Managed Azure Runtime",
+                "pricing_model": req.pricing_model or "on-demand",
+                "rationale": f"Azure equivalent of {req.resource_name} ({req.rationale or 'Added via delta sync'})"
+            }
+        elif "llm gateway" in res_name or "ilm gateway" in res_name:
+            return {
+                "resource_name": "In-House LLM Gateway (VMSS)",
+                "service_family": "compute",
+                "service_name": "Virtual Machines",
+                "region": region,
+                "sku": "Standard_D4s_v5",
+                "quantity": req.quantity or 2,
+                "config": cfg,
+                "availability_config": "Zone-Redundant",
+                "pricing_model": req.pricing_model or "on-demand",
+                "rationale": f"Azure equivalent of {req.resource_name}"
+            }
+        elif "replica" in res_name or "slave" in res_name:
+            return {
+                "resource_name": "Azure Database for PostgreSQL Flexible Server (Read Replica - Slave)",
+                "service_family": "database",
+                "service_name": "Azure Database for PostgreSQL",
+                "region": region,
+                "sku": "GP_Gen5_4",
+                "quantity": req.quantity,
+                "config": cfg,
+                "availability_config": "Asynchronous Read Replica",
+                "pricing_model": req.pricing_model or "on-demand",
+                "rationale": f"Azure equivalent read replica of {req.resource_name}"
+            }
+        elif fam == "database" or "rds" in res_name or "postgres" in res_name:
+            return {
+                "resource_name": "Azure Database for PostgreSQL Flexible Server (Master Writer)",
+                "service_family": "database",
+                "service_name": "Azure Database for PostgreSQL",
+                "region": region,
+                "sku": "GP_Gen5_4",
+                "quantity": req.quantity,
+                "config": cfg,
+                "availability_config": "Zone-Redundant",
+                "pricing_model": req.pricing_model or "on-demand",
+                "rationale": f"Azure equivalent of {req.resource_name}"
+            }
+        elif fam == "security" and ("secret" in res_name or "secrets manager" in res_name):
+            sec_count = cfg.get("secrets_count", 5)
+            return {
+                "resource_name": f"Azure Key Vault ({sec_count} Secrets)",
+                "service_family": "security",
+                "service_name": "Key Vault",
+                "region": region,
+                "sku": "Standard Tier",
+                "quantity": req.quantity,
+                "config": cfg,
+                "availability_config": "Regional Resilient",
+                "pricing_model": req.pricing_model or "on-demand",
+                "rationale": f"Azure equivalent of {req.resource_name}"
+            }
+        elif fam == "storage" or "s3" in res_name or "s3" in sku or "bucket" in res_name:
             gb = cfg.get("storage_gb", 100)
             return {
                 "resource_name": "Azure Blob Storage Account",
@@ -638,7 +704,73 @@ def map_resource_to_other_provider(req: AddResourceRequest, src_provider: str, d
     else:
         # dst_provider == "aws"
         region = "us-east-1"
-        if fam == "storage" or "blob" in res_name or "blob" in sku or "storage" in res_name:
+        if "airflow" in res_name or "data factory" in res_name or "airflow" in sku:
+            return {
+                "resource_name": "Amazon MWAA (Managed Apache Airflow)",
+                "service_family": "compute",
+                "service_name": "AmazonMWAA",
+                "region": region,
+                "sku": "mw1.small",
+                "quantity": req.quantity,
+                "config": cfg,
+                "availability_config": "Managed Multi-AZ Airflow Environment",
+                "pricing_model": req.pricing_model or "on-demand",
+                "rationale": f"AWS equivalent of {req.resource_name} ({req.rationale or 'Added via delta sync'})"
+            }
+        elif "llm gateway" in res_name or "ilm gateway" in res_name:
+            return {
+                "resource_name": "In-House LLM Gateway Cluster",
+                "service_family": "compute",
+                "service_name": "AmazonEC2",
+                "region": region,
+                "sku": "c7i.large",
+                "quantity": req.quantity or 2,
+                "config": cfg,
+                "availability_config": "Multi-AZ",
+                "pricing_model": req.pricing_model or "on-demand",
+                "rationale": f"AWS equivalent of {req.resource_name}"
+            }
+        elif "replica" in res_name or "slave" in res_name:
+            return {
+                "resource_name": "Amazon RDS PostgreSQL Read Replica (Slave)",
+                "service_family": "database",
+                "service_name": "AmazonRDS",
+                "region": region,
+                "sku": "db.m6i.large",
+                "quantity": req.quantity,
+                "config": cfg,
+                "availability_config": "Asynchronous Streaming Replication",
+                "pricing_model": req.pricing_model or "on-demand",
+                "rationale": f"AWS equivalent read replica of {req.resource_name}"
+            }
+        elif fam == "database" or "flexible server" in res_name or "postgres" in res_name:
+            return {
+                "resource_name": "Amazon RDS PostgreSQL Master (Writer)",
+                "service_family": "database",
+                "service_name": "AmazonRDS",
+                "region": region,
+                "sku": "db.m6i.xlarge",
+                "quantity": req.quantity,
+                "config": cfg,
+                "availability_config": "Multi-AZ",
+                "pricing_model": req.pricing_model or "on-demand",
+                "rationale": f"AWS equivalent of {req.resource_name}"
+            }
+        elif fam == "security" and ("secret" in res_name or "key vault" in res_name):
+            sec_count = cfg.get("secrets_count", 5)
+            return {
+                "resource_name": f"AWS Secrets Manager ({sec_count} Secrets)",
+                "service_family": "security",
+                "service_name": "AWSSecretsManager",
+                "region": region,
+                "sku": "Secrets Management",
+                "quantity": req.quantity,
+                "config": cfg,
+                "availability_config": "Regional High Availability",
+                "pricing_model": req.pricing_model or "on-demand",
+                "rationale": f"AWS equivalent of {req.resource_name}"
+            }
+        elif fam == "storage" or "blob" in res_name or "blob" in sku or "storage" in res_name:
             gb = cfg.get("storage_gb", 100)
             return {
                 "resource_name": "Amazon S3 Object Storage Bucket",
@@ -769,16 +901,18 @@ async def add_resource_to_scenario(
     scenario.annual_cost_usd = round(scenario.monthly_cost_usd * 12, 2)
 
     # Cross-cloud delta update: also update the corresponding scenario in the other provider if present
-    other_provider = "azure" if scenario.provider == "aws" else "aws"
+    from sqlalchemy import func
+    current_p = (scenario.provider or "").lower()
+    other_provider = "azure" if current_p == "aws" else "aws"
     other_res = await db.execute(
         select(Scenario).where(
             Scenario.project_id == project.id,
-            Scenario.provider == other_provider,
+            func.lower(Scenario.provider) == other_provider,
             Scenario.scenario_type == scenario.scenario_type
         )
     )
-    other_scenario = other_res.scalar_one_or_none()
-    if other_scenario:
+    other_scenarios = other_res.scalars().all()
+    for other_scenario in other_scenarios:
         mapped = map_resource_to_other_provider(req, scenario.provider, other_provider)
         other_cost = lookup_sku_monthly_cost(
             provider=other_provider,
@@ -792,7 +926,7 @@ async def add_resource_to_scenario(
             "id": f"delta-{uuid.uuid4().hex[:8]}",
             "delta_sync_id": sync_id,
             "resource_name": mapped["resource_name"],
-            "provider": other_provider,
+            "provider": other_scenario.provider,
             "service_family": mapped["service_family"],
             "service_name": mapped["service_name"],
             "region": mapped["region"],
@@ -876,16 +1010,18 @@ async def delete_resource_from_scenario(
     scenario.annual_cost_usd = round(scenario.monthly_cost_usd * 12, 2)
 
     if sync_id:
-        other_provider = "azure" if scenario.provider == "aws" else "aws"
+        from sqlalchemy import func
+        current_p = (scenario.provider or "").lower()
+        other_provider = "azure" if current_p == "aws" else "aws"
         other_res = await db.execute(
             select(Scenario).where(
                 Scenario.project_id == project.id,
-                Scenario.provider == other_provider,
+                func.lower(Scenario.provider) == other_provider,
                 Scenario.scenario_type == scenario.scenario_type
             )
         )
-        other_scenario = other_res.scalar_one_or_none()
-        if other_scenario:
+        other_scenarios = other_res.scalars().all()
+        for other_scenario in other_scenarios:
             other_scenario.resources = [r for r in (other_scenario.resources or []) if r.get("delta_sync_id") != sync_id]
             flag_modified(other_scenario, "resources")
             other_scenario.monthly_cost_usd = round(sum(r.get("monthly_cost_usd", 0.0) for r in other_scenario.resources), 2)

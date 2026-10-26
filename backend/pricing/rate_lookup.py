@@ -162,13 +162,22 @@ def lookup_sku_monthly_cost(
             return 2.50 * qty
 
         elif fam == "security" or "secret" in sku_clean.lower():
-            return 3.00 * qty
+            sec_count = cfg.get("secrets_count") or 5
+            return round((sec_count * 0.40 + 1.00) * qty, 2)
+
+        elif "mwaa" in sku_clean.lower() or "airflow" in sku_clean.lower():
+            if "medium" in sku_clean.lower():
+                return 680.00 * qty
+            return 438.00 * qty
 
         elif "eks" in sku_clean.lower() and "cluster" in sku_clean.lower():
             return 73.00 * qty
 
     elif p == "azure":
-        if "aks" in sku_clean.lower() or ("kubernetes" in sku_clean.lower() and "node" not in sku_clean.lower()):
+        if "airflow" in sku_clean.lower() or "data factory" in sku_clean.lower():
+            return 365.00 * qty
+
+        elif "aks" in sku_clean.lower() or ("kubernetes" in sku_clean.lower() and "node" not in sku_clean.lower()):
             if "free" in sku_clean.lower():
                 return 0.00
             return 73.00 * qty

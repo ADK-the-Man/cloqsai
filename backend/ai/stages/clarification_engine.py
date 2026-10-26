@@ -199,6 +199,34 @@ class ClarificationEngine:
                 ]
             ))
 
+        if sig.get("has_airflow") and "airflow_scaling" not in already_asked_ids:
+            candidates.append(ClarificationQuestion(
+                id="airflow_scaling",
+                field_key="airflow_scaling",
+                text="What is the expected execution frequency and worker concurrency for your Airflow DAGs?",
+                explanation="Managed Airflow (MWAA/ADF) worker sizing depends on the maximum number of concurrent tasks and task queue depth.",
+                question_type="multiple_choice",
+                options=[
+                    ClarificationOption(value="hourly_batch", label="Scheduled Hourly/Daily Batches (1-2 Celery workers with auto-scaling)"),
+                    ClarificationOption(value="continuous_pipeline", label="Continuous High-Frequency DAGs (4+ workers with Celery executor)"),
+                    ClarificationOption(value="burstable_dags", label="Burstable Workloads with Task Spikes (Autoscaling from 1 to 10 workers)"),
+                ]
+            ))
+
+        if sig.get("has_llm_gateway") and "llm_gateway_caching" not in already_asked_ids:
+            candidates.append(ClarificationQuestion(
+                id="llm_gateway_caching",
+                field_key="llm_gateway_caching",
+                text="Should the In-House LLM Gateway incorporate semantic caching for prompt responses?",
+                explanation="Semantic response caching for LLM responses can reduce inference latency from 30s to <100ms and significantly cut token costs.",
+                question_type="multiple_choice",
+                options=[
+                    ClarificationOption(value="semantic_cache", label="Yes, enable Redis semantic caching for repeated prompt completions"),
+                    ClarificationOption(value="direct_passthrough", label="Direct passthrough without response caching (always live inference)"),
+                    ClarificationOption(value="in_memory_lru", label="Local in-memory LRU cache on gateway instances"),
+                ]
+            ))
+
         return [c for c in candidates if c.id not in already_asked_ids][:3]
 
     def get_questions(
@@ -301,6 +329,34 @@ class ClarificationEngine:
                     ClarificationOption(value="standard_only", label="Standard S3 Frequent Access only (All objects immediate access)"),
                     ClarificationOption(value="intelligent_tiering", label="S3 Intelligent-Tiering (Auto-optimizes cost based on access patterns)"),
                     ClarificationOption(value="glacier_archive", label="Standard + Glacier Deep Archive policy after 90 days"),
+                ]
+            ))
+
+        if sig.get("has_airflow") and "airflow_scaling" not in already_asked_ids:
+            candidates.append(ClarificationQuestion(
+                id="airflow_scaling",
+                field_key="airflow_scaling",
+                text="What is the expected execution frequency and worker concurrency for your Airflow DAGs?",
+                explanation="Managed Airflow (MWAA/ADF) worker sizing depends on the maximum number of concurrent tasks and task queue depth.",
+                question_type="multiple_choice",
+                options=[
+                    ClarificationOption(value="hourly_batch", label="Scheduled Hourly/Daily Batches (1-2 Celery workers with auto-scaling)"),
+                    ClarificationOption(value="continuous_pipeline", label="Continuous High-Frequency DAGs (4+ workers with Celery executor)"),
+                    ClarificationOption(value="burstable_dags", label="Burstable Workloads with Task Spikes (Autoscaling from 1 to 10 workers)"),
+                ]
+            ))
+
+        if sig.get("has_llm_gateway") and "llm_gateway_caching" not in already_asked_ids:
+            candidates.append(ClarificationQuestion(
+                id="llm_gateway_caching",
+                field_key="llm_gateway_caching",
+                text="Should the In-House LLM Gateway incorporate semantic caching for prompt responses?",
+                explanation="Semantic response caching for LLM responses can reduce inference latency from 30s to <100ms and significantly cut token costs.",
+                question_type="multiple_choice",
+                options=[
+                    ClarificationOption(value="semantic_cache", label="Yes, enable Redis semantic caching for repeated prompt completions"),
+                    ClarificationOption(value="direct_passthrough", label="Direct passthrough without response caching (always live inference)"),
+                    ClarificationOption(value="in_memory_lru", label="Local in-memory LRU cache on gateway instances"),
                 ]
             ))
 

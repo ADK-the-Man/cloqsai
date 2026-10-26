@@ -13,6 +13,7 @@ import { JobStatusCard } from '@/components/estimates/JobStatusCard'
 import { ArtifactCard } from '@/components/estimates/ArtifactCard'
 import { AddServiceModal } from '@/components/scenarios/AddServiceModal'
 import { AzureCalculatorModal } from '@/components/estimates/AzureCalculatorModal'
+import { PromptEditorCard } from '@/components/conversation/PromptEditorCard'
 import { getToken } from '@/lib/auth'
 
 export default function EstimatesPage() {
@@ -182,6 +183,15 @@ export default function EstimatesPage() {
           {isRefreshing ? 'Refreshing...' : 'Refresh Status'}
         </Button>
       </div>
+
+      {/* Editable Initial Prompt & Re-Run Trigger */}
+      <PromptEditorCard
+        projectId={id}
+        onRerun={async () => {
+          await fetchScenarios()
+          await fetchEstimates()
+        }}
+      />
 
       {/* Section 1: Official Cloud Provider Calculator Estimates */}
       <div className="space-y-3">

@@ -32,6 +32,10 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
     if p == "aws":
         # Tier 1 (y: 40): Public Ingress Tier
         app_target = "eks" if sig["has_eks"] else "app"
+        alb_deps = [app_target]
+        if sig.get("has_llm_gateway"):
+            alb_deps.append("llm_gateway")
+
         services.append(ArchitectureService(
             id="alb",
             name="Application Load Balancer",
@@ -40,8 +44,8 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
             service_name="ElasticLoadBalancing",
             region=aws_region,
             purpose="HTTPS traffic ingress & TLS termination",
-            rationale="Distributes incoming user traffic across multi-AZ container nodes.",
-            dependencies=[app_target],
+            rationale="Distributes incoming user traffic across multi-AZ container nodes and LLM gateway.",
+            dependencies=alb_deps,
             diagram_position={"x": 420, "y": 40}
         ))
 
@@ -97,6 +101,21 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
                 diagram_position={"x": 420, "y": 190}
             ))
 
+        if sig.get("has_llm_gateway"):
+            llm_deps = ["secrets"] if sig.get("has_secrets") else []
+            services.append(ArchitectureService(
+                id="llm_gateway",
+                name="In-House LLM Gateway Cluster",
+                provider="aws",
+                service_family="compute",
+                service_name="AmazonEC2",
+                region=aws_region,
+                purpose="In-house LLM routing & token inference proxy",
+                rationale="Dedicated compute cluster handling sub-30s inference gateway routing and rate limiting.",
+                dependencies=llm_deps,
+                diagram_position={"x": 680, "y": 190}
+            ))
+
         if sig.get("has_mid_server"):
             services.append(ArchitectureService(
                 id="midserver",
@@ -127,29 +146,45 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
 
         # Tier 3 (y: 350): Data, Secrets & Middleware Tier
         if sig["has_rds"]:
+            master_name = "Amazon RDS PostgreSQL Master (Writer)" if sig.get("has_read_replica") else "Amazon RDS PostgreSQL"
             services.append(ArchitectureService(
                 id="rds",
-                name="Amazon RDS PostgreSQL",
+                name=master_name,
                 provider="aws",
                 service_family="database",
                 service_name="AmazonRDS",
                 region=aws_region,
-                purpose="Primary transactional data store",
-                rationale="Synchronous replication with automatic multi-AZ failover.",
+                purpose="Primary transactional data store (5,000 writes)" if sig.get("has_read_replica") else "Primary transactional data store",
+                rationale="Dedicated master database instance with provisioned IOPS and automatic multi-AZ failover.",
                 dependencies=[],
                 diagram_position={"x": 120, "y": 350}
             ))
 
+            if sig.get("has_read_replica"):
+                services.append(ArchitectureService(
+                    id="rds_replica",
+                    name="Amazon RDS PostgreSQL Read Replica (Slave)",
+                    provider="aws",
+                    service_family="database",
+                    service_name="AmazonRDS",
+                    region=aws_region,
+                    purpose="Dedicated read offloading (5,000 concurrent reads)",
+                    rationale="Asynchronous streaming replication offloading read traffic from the master database.",
+                    dependencies=["rds"],
+                    diagram_position={"x": 120, "y": 420}
+                ))
+
         if sig.get("has_secrets"):
+            sec_count = sig.get("secrets_count", 5)
             services.append(ArchitectureService(
                 id="secrets",
-                name="AWS Secrets Manager",
+                name=f"AWS Secrets Manager ({sec_count} Secrets)",
                 provider="aws",
                 service_family="security",
                 service_name="AWSSecretsManager",
                 region=aws_region,
                 purpose="Credentials & secrets management",
-                rationale="Centralized secret rotation, credentials, and API key management.",
+                rationale=f"Centralized secret rotation, credentials, and API key management for {sec_count} secrets.",
                 dependencies=[],
                 diagram_position={"x": 380, "y": 350}
             ))
@@ -198,7 +233,10 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
             ))
 
         if sig.get("has_s3"):
-            s3_label = f"Amazon S3 ({sig['s3_count']} Buckets)"
+            if sig.get("has_large_video_uploads"):
+                s3_label = "Amazon S3 (2 GB Video & Document Storage)"
+            else:
+                s3_label = f"Amazon S3 ({sig['s3_count']} Buckets)"
             services.append(ArchitectureService(
                 id="s3",
                 name=s3_label,
@@ -207,12 +245,31 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
                 service_name="AmazonS3",
                 region=aws_region,
                 purpose="User asset uploads & archival backups",
-                rationale="Highly durable (99.999999999%) S3 object storage for binary files.",
+                rationale="Highly durable (99.999999999%) S3 object storage supporting 2 GB video files and office documents.",
                 dependencies=[],
                 diagram_position={"x": 940, "y": 350}
             ))
 
-        # Tier 4 (y: 500): Serverless Worker & Telemetry Tier
+        # Tier 4 (y: 500): Orchestration, Serverless Worker & Telemetry Tier
+        if sig.get("has_airflow"):
+            mwaa_deps = []
+            if sig.get("has_s3"):
+                mwaa_deps.append("s3")
+            if sig.get("has_rds"):
+                mwaa_deps.append("rds")
+            services.append(ArchitectureService(
+                id="mwaa",
+                name="Amazon MWAA (Managed Apache Airflow)",
+                provider="aws",
+                service_family="compute",
+                service_name="AmazonMWAA",
+                region=aws_region,
+                purpose="Workflow DAG orchestration & batch processing",
+                rationale="Fully managed Airflow environment scheduling data workflows with automatic Celery worker autoscaling.",
+                dependencies=mwaa_deps,
+                diagram_position={"x": 120, "y": 500}
+            ))
+
         if sig["has_lambda"]:
             services.append(ArchitectureService(
                 id="lambda",
@@ -243,6 +300,10 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
     elif p == "azure":
         # Tier 1: Ingress
         app_target = "aks" if sig["has_eks"] else "vmss"
+        agw_deps = [app_target]
+        if sig.get("has_llm_gateway"):
+            agw_deps.append("llm_gateway")
+
         services.append(ArchitectureService(
             id="agw",
             name="Azure Application Gateway v2",
@@ -252,7 +313,7 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
             region=azure_region,
             purpose="WAF & Layer 7 HTTP ingress",
             rationale="Enterprise-grade ingress with integrated Web Application Firewall.",
-            dependencies=[app_target],
+            dependencies=agw_deps,
             diagram_position={"x": 420, "y": 40}
         ))
 
@@ -308,6 +369,21 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
                 diagram_position={"x": 420, "y": 190}
             ))
 
+        if sig.get("has_llm_gateway"):
+            llm_deps = ["keyvault"] if sig.get("has_secrets") else []
+            services.append(ArchitectureService(
+                id="llm_gateway",
+                name="In-House LLM Gateway (VMSS)",
+                provider="azure",
+                service_family="compute",
+                service_name="Virtual Machines",
+                region=azure_region,
+                purpose="In-house LLM routing & token inference proxy",
+                rationale="Dedicated VMSS cluster handling sub-30s inference gateway routing and rate limiting.",
+                dependencies=llm_deps,
+                diagram_position={"x": 680, "y": 190}
+            ))
+
         if sig.get("has_mid_server"):
             services.append(ArchitectureService(
                 id="midserver",
@@ -338,29 +414,45 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
 
         # Tier 3: Data, Secrets & Middleware
         if sig["has_rds"]:
+            master_name = "PostgreSQL Flexible Server Master (Writer)" if sig.get("has_read_replica") else "PostgreSQL Flexible Server"
             services.append(ArchitectureService(
                 id="pg_flex",
-                name="PostgreSQL Flexible Server",
+                name=master_name,
                 provider="azure",
                 service_family="database",
                 service_name="Azure Database for PostgreSQL",
                 region=azure_region,
-                purpose="Managed relational database",
+                purpose="Managed relational database (5,000 writes)" if sig.get("has_read_replica") else "Managed relational database",
                 rationale="Zone-redundant standby instance and automated daily backups.",
                 dependencies=[],
                 diagram_position={"x": 120, "y": 350}
             ))
 
+            if sig.get("has_read_replica"):
+                services.append(ArchitectureService(
+                    id="pg_flex_replica",
+                    name="PostgreSQL Flexible Server Read Replica (Slave)",
+                    provider="azure",
+                    service_family="database",
+                    service_name="Azure Database for PostgreSQL",
+                    region=azure_region,
+                    purpose="Dedicated read offloading (5,000 concurrent reads)",
+                    rationale="Dedicated asynchronous read replica handling queries offloaded from the primary flexible master.",
+                    dependencies=["pg_flex"],
+                    diagram_position={"x": 120, "y": 420}
+                ))
+
         if sig.get("has_secrets"):
+            sec_count = sig.get("secrets_count", 5)
             services.append(ArchitectureService(
                 id="keyvault",
-                name="Azure Key Vault (Secrets Management)",
+                name=f"Azure Key Vault ({sec_count} Secrets)",
                 provider="azure",
                 service_family="security",
                 service_name="Key Vault",
                 region=azure_region,
                 purpose="Secure secret & key management",
-                rationale="Centralized secret, key, and certificate management for AKS microservices and mid-server.",
+                rationale=f"Centralized secret, key, and certificate management for {sec_count} secrets.",
                 dependencies=[],
                 diagram_position={"x": 380, "y": 350}
             ))
@@ -409,7 +501,10 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
             ))
 
         if sig.get("has_s3"):
-            blob_label = f"Azure Blob Storage ({sig['s3_count']} Accounts)"
+            if sig.get("has_large_video_uploads"):
+                blob_label = "Azure Blob Storage (2 GB Video & Document Storage)"
+            else:
+                blob_label = f"Azure Blob Storage ({sig['s3_count']} Accounts)"
             services.append(ArchitectureService(
                 id="blob",
                 name=blob_label,
@@ -418,12 +513,31 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
                 service_name="Storage",
                 region=azure_region,
                 purpose="Blob and container object storage",
-                rationale="ZRS storage accounts for user uploads and system archival.",
+                rationale="ZRS storage accounts supporting chunked upload for 2 GB video files and enterprise documents.",
                 dependencies=[],
                 diagram_position={"x": 940, "y": 350}
             ))
 
-        # Tier 4: Serverless Worker & Telemetry
+        # Tier 4: Orchestration, Serverless Worker & Telemetry
+        if sig.get("has_airflow"):
+            adf_deps = []
+            if sig.get("has_s3"):
+                adf_deps.append("blob")
+            if sig.get("has_rds"):
+                adf_deps.append("pg_flex")
+            services.append(ArchitectureService(
+                id="airflow",
+                name="Azure Data Factory (Managed Apache Airflow)",
+                provider="azure",
+                service_family="compute",
+                service_name="Azure Data Factory",
+                region=azure_region,
+                purpose="Workflow DAG orchestration & batch processing",
+                rationale="Managed Airflow environment in Azure Data Factory scheduling batch DAG workflows.",
+                dependencies=adf_deps,
+                diagram_position={"x": 120, "y": 500}
+            ))
+
         if sig["has_lambda"]:
             services.append(ArchitectureService(
                 id="func",
