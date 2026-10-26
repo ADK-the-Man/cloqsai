@@ -1,9 +1,10 @@
+from __future__ import annotations
 """
 Dynamic workload sizing engine: analyzes explicit and implicit architecture components
 (EKS, Lambda, OpenSearch, SQS, S3, RDS, etc.) and sizes appropriate compute, memory, and tiers
 across dynamic AWS and Azure regions.
 """
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 AZURE_REGION_MAP = {

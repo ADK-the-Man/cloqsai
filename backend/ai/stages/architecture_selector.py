@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Dynamic architecture selector: builds a complete topological service graph
 and React Flow diagram nodes & edges matching the specific workload components

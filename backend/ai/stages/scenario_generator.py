@@ -1,8 +1,9 @@
+from __future__ import annotations
 """
 Scenario generator: produces 3 distinct, production-grade architectural scenarios
 (cost_optimized, recommended, high_availability) with honest assumptions and trade-offs.
 """
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from ai.stages.sizing_engine import size_aws_workload, size_azure_workload, parse_workload_signals, analyze_budget_feasibility
 from models.schemas import ScenarioResource
 
