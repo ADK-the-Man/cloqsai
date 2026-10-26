@@ -48,7 +48,7 @@ async def create_demo_user() -> None:
             await session.commit()
             logger.info("Demo user created: %s", settings.DEMO_EMAIL)
         else:
-            demo.hashed_password = hash_password(settings.DEMO_PASSWORD)
+            existing.hashed_password = hash_password(settings.DEMO_PASSWORD)
             await session.commit()
             logger.info("Demo user password updated: %s", settings.DEMO_EMAIL)
 

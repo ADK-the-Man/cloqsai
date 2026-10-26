@@ -61,3 +61,5 @@ Thumbs.db
 # Bat files
 reload-app.bat
 run_docker.bat
+cloudflared.exe
+

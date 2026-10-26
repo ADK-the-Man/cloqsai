@@ -16,8 +16,9 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NODE_ENV production
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 
-RUN npm run build || true
+RUN npm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
