@@ -27,8 +27,10 @@ async def extract_project_requirements(
 ):
     try:
         spec = await extract_requirements(project.id, req.raw_text, db)
+        await db.commit()
     except Exception as exc:
         logger.warning("LLM extraction failed or invalid key: %s. Engaging deterministic workload extractor fallback.", exc)
+        await db.rollback()
         # Fallback when Anthropic API key is not yet configured by user
         # Extracts heuristic requirements from the prompt directly
         text_lower = req.raw_text.lower()

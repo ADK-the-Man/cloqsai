@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Sparkles, Cloud, Server, Layers, ChevronDown, ChevronUp } from 'lucide-react'
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { getToken } from '@/lib/auth'
+import { getToken, isAuthenticated } from '@/lib/auth'
 
 const EXAMPLE_PROMPT =
   'I need a production application with a React frontend, Python FastAPI backend, PostgreSQL database, 150 concurrent users, file uploads, monitoring, daily backups, and high availability. Deploy it in US East (us-east-1). I expect the application to grow over the next year. Recommend the appropriate AWS and Azure infrastructure and provide monthly and annual cost estimates.'
@@ -45,30 +45,56 @@ export default function NewProjectPage() {
 
   const effectiveRegion = selectedRegion === 'custom' ? (customRegion.trim() || 'us-east-1') : selectedRegion
 
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push('/login')
+    }
+  }, [router])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!prompt.trim() || !name.trim()) return
+    if (!prompt.trim()) return
 
     setLoading(true)
     const token = getToken()
+    if (!token) {
+      alert('Your session has expired. Please sign in to continue.')
+      router.push('/login')
+      setLoading(false)
+      return
+    }
+
     const headers = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     }
 
     try {
-      // 1. Create project
+      // 1. Auto-generate project name if left blank
+      const effectiveName = name.trim() || prompt.trim().slice(0, 36) || 'Cloud Infrastructure Estimate'
+
       const projRes = await fetch('/api/v1/projects', {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          name: name.trim(),
+          name: effectiveName,
           description: prompt.slice(0, 160) + '...',
           provider_selection: provider,
         }),
       })
 
-      if (!projRes.ok) throw new Error('Failed to create project')
+      if (!projRes.ok) {
+        if (projRes.status === 401) {
+          alert('Your session has expired. Please sign in again.')
+          router.push('/login')
+          return
+        }
+        const errData = await projRes.json().catch(() => ({}))
+        const msg = (typeof errData.detail === 'string' && errData.detail)
+          || (Array.isArray(errData.detail) ? errData.detail[0]?.msg : null)
+          || 'Failed to create project.'
+        throw new Error(msg)
+      }
       const project = await projRes.json()
 
       // 2. Extract requirements only including parameters the user actually provided
@@ -99,7 +125,7 @@ export default function NewProjectPage() {
         ? `${prompt.trim()}\n\nExplicit Parameters:\n${structuredParams.join('\n')}`
         : prompt.trim()
 
-      await fetch(`/api/v1/projects/${project.id}/requirements/extract`, {
+      const extRes = await fetch(`/api/v1/projects/${project.id}/requirements/extract`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -107,11 +133,21 @@ export default function NewProjectPage() {
         }),
       })
 
+      if (!extRes.ok) {
+        if (extRes.status === 401) {
+          alert('Your session has expired. Please sign in again.')
+          router.push('/login')
+          return
+        }
+        const errData = await extRes.json().catch(() => ({}))
+        console.warn('Requirements extraction warning:', errData)
+      }
+
       // 3. Navigate to conversational discovery
       router.push(`/projects/${project.id}/discover`)
-    } catch (err) {
-      console.error(err)
-      alert('Error initializing project. Please try again.')
+    } catch (err: any) {
+      console.error('Project creation failed:', err)
+      alert(err.message || 'Error initializing project. Please check your connection and try again.')
     } finally {
       setLoading(false)
     }
@@ -156,9 +192,8 @@ export default function NewProjectPage() {
                   id="projectName"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Healthcare Analytics Portal"
+                  placeholder="e.g. Healthcare Analytics Portal (optional — auto-generated from prompt if blank)"
                   className="text-xs bg-white"
-                  required
                 />
               </div>
 

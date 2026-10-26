@@ -83,7 +83,9 @@ export function PromptEditorCard({
       })
 
       if (!extRes.ok) {
-        throw new Error('Failed to update requirements')
+        const errJson = await extRes.json().catch(() => ({}))
+        const msg = (typeof errJson.detail === 'string' && errJson.detail) || 'Failed to update requirements'
+        throw new Error(msg)
       }
 
       setPrompt(editedPrompt.trim())

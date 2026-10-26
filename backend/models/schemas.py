@@ -126,7 +126,7 @@ class RequirementsSpec(BaseModel):
 
 
 class RequirementsExtractRequest(BaseModel):
-    raw_text: str = Field(min_length=10)
+    raw_text: str = Field(default="", min_length=1)
 
 
 class RequirementsResponse(BaseModel):
