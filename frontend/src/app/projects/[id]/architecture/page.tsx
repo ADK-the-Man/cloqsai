@@ -221,6 +221,7 @@ export default function ArchitecturePage() {
             </CardHeader>
             <CardContent className="p-0">
               <ArchitectureDiagram
+                key={`${currentArch.id}-${currentArch.diagram_data?.nodes?.length || 0}`}
                 initialNodes={currentArch.diagram_data?.nodes || []}
                 initialEdges={currentArch.diagram_data?.edges || []}
                 onChange={handleDiagramChange}

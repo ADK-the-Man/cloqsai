@@ -87,16 +87,33 @@ async def generate_architectures(
     conv = conv_res.scalar_one_or_none()
     req = dict(conv.collected_requirements or {}) if conv else {}
 
-    # Enrich req with project description, prompt, and conversation chat history
-    chat_parts = []
-    if project.description:
-        chat_parts.append(project.description)
+    # Prioritize latest Requirements record for complete, non-truncated prompt
+    from models.db import Requirements
+    req_rec = (await db.execute(
+        select(Requirements)
+        .where(Requirements.project_id == project.id)
+        .order_by(desc(Requirements.version))
+    )).scalars().first()
+
+    if req_rec:
+        if req_rec.raw_text:
+            req["raw_text"] = req_rec.raw_text
+        if req_rec.structured_spec and isinstance(req_rec.structured_spec, dict):
+            for k, v in req_rec.structured_spec.items():
+                if k not in req or req[k] is None:
+                    req[k] = v
+
+    if not req.get("raw_text") and project.description:
+        req["raw_text"] = project.description
+
+    # Also include any conversation message additions
     if conv and conv.messages:
+        chat_parts = []
         for m in conv.messages:
             if isinstance(m, dict) and m.get("content"):
                 chat_parts.append(str(m["content"]))
-    existing_raw = req.get("raw_text", "")
-    req["raw_text"] = f"{existing_raw} {' '.join(chat_parts)}"
+        if chat_parts:
+            req["raw_text"] = f"{req.get('raw_text', '')} {' '.join(chat_parts)}"
 
     providers_to_generate = []
     sel = (project.provider_selection or "both").lower()

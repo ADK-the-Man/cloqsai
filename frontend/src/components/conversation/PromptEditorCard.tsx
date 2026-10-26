@@ -75,7 +75,7 @@ export function PromptEditorCard({
         Authorization: `Bearer ${token}`,
       }
 
-      // 1. Re-extract requirements
+      // 1. Re-extract requirements with full updated prompt
       const extRes = await fetch(`/api/v1/projects/${projectId}/requirements/extract`, {
         method: 'POST',
         headers,
@@ -88,15 +88,27 @@ export function PromptEditorCard({
         throw new Error(msg)
       }
 
+      // 2. Re-generate architecture graph
+      await fetch(`/api/v1/projects/${projectId}/architecture/generate`, {
+        method: 'POST',
+        headers,
+      })
+
+      // 3. Re-generate comparison scenarios
+      await fetch(`/api/v1/projects/${projectId}/scenarios/generate`, {
+        method: 'POST',
+        headers,
+      })
+
       setPrompt(editedPrompt.trim())
       setIsEditing(false)
 
-      // 2. Trigger onRerun callback or notify
+      // 4. Trigger onRerun callback or notify
       if (onRerun) {
         await onRerun()
       }
 
-      toast.success('Workload requirements & sizing re-analyzed successfully!', { id: toastId })
+      toast.success('Architecture graph & sizing re-analyzed with updated prompt!', { id: toastId })
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || 'Error re-running pipeline. Please retry.', { id: toastId })

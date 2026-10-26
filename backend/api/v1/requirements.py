@@ -90,7 +90,10 @@ async def extract_project_requirements(
             "regions": reg_val or ["us-east-1"],
         }
         conv.completeness_score = 0.5
-        await db.commit()
+
+    # Always ensure project.description holds the full prompt
+    project.description = req.raw_text
+    await db.commit()
 
     # Get latest
     latest_res = await db.execute(

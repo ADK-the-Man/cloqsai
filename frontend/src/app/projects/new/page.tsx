@@ -78,7 +78,7 @@ export default function NewProjectPage() {
         headers,
         body: JSON.stringify({
           name: effectiveName,
-          description: prompt.slice(0, 160) + '...',
+          description: prompt,
           provider_selection: provider,
         }),
       })
