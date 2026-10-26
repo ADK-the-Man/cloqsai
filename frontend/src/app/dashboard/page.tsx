@@ -97,13 +97,6 @@ export default function DashboardPage() {
               AI-Powered Cloud Architecture & Cost Intelligence &middot; <span className="font-medium text-blue-600">Architect Smarter. Optimize Everything.</span>
             </p>
           </div>
-
-          <Button asChild className="gap-2 bg-blue-600 hover:bg-blue-700">
-            <Link href="/projects/new">
-              <PlusCircle className="h-4 w-4" />
-              New Estimate
-            </Link>
-          </Button>
         </div>
 
         {/* Live Provider Health Banner */}

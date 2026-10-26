@@ -17,9 +17,10 @@ Generate 2 to 3 intelligent, highly specific technical clarification questions t
 
 CRITICAL RULES:
 1. Do NOT ask generic or repetitive questions.
-2. Ask questions directly tailored to the specific technologies, node counts, storage, or tools they mentioned (e.g. if they mentioned EKS, ask about node group autoscaling; if they mentioned OpenSearch, ask about cluster topology or storage; if they mentioned queues/lambda, ask about message throughput).
-3. For each question, provide 3 to 4 realistic technical options with clear explanations of trade-offs.
-4. Do NOT ask questions that the user has already answered or that are already in 'already_asked_ids'.
+2. Ask questions directly tailored strictly to the specific technologies, node counts, storage, or tools the customer mentioned.
+3. If the customer did NOT mention or request a relational database / RDS, do NOT ask about RDS or database instance types. Only ask database questions if a database was explicitly mentioned.
+4. For each question, provide 3 to 4 realistic technical options with clear explanations of trade-offs.
+5. Do NOT ask questions that the user has already answered or that are already in 'already_asked_ids'.
 """
 
 CLARIFICATION_SCHEMA = {
@@ -155,6 +156,34 @@ class ClarificationEngine:
                 ]
             ))
 
+        if sig.get("has_redis") and "redis_caching" not in already_asked_ids:
+            candidates.append(ClarificationQuestion(
+                id="redis_caching",
+                field_key="redis_caching",
+                text="What caching topology and eviction strategy should be configured for Redis?",
+                explanation="Multi-AZ replication provides zero-downtime failover for critical session caches and rate limiters.",
+                question_type="multiple_choice",
+                options=[
+                    ClarificationOption(value="cluster_multi_az", label="Multi-AZ with Automatic Failover (Production standard with 2+ replicas)"),
+                    ClarificationOption(value="single_node", label="Single Node Cache (Cost-optimized for non-critical transient caching)"),
+                    ClarificationOption(value="read_replica_cluster", label="Clustered Redis with 3 Read Replicas (High read-throughput)"),
+                ]
+            ))
+
+        if sig["has_rds"] and "db_ha_topology" not in already_asked_ids:
+            candidates.append(ClarificationQuestion(
+                id="db_ha_topology",
+                field_key="db_ha_topology",
+                text="What is your required database redundancy and failover policy?",
+                explanation="Multi-AZ standby deployments replicate synchronously to a second availability zone to meet strict 99.9% RTO/RPO SLAs.",
+                question_type="multiple_choice",
+                options=[
+                    ClarificationOption(value="multi_az_standby", label="Multi-AZ Standby Deployment (Automated failover in under 60 seconds)"),
+                    ClarificationOption(value="single_az", label="Single-AZ Deployment (Lower cost, best for development or non-critical DBs)"),
+                    ClarificationOption(value="multi_az_read_replica", label="Multi-AZ + 1 Read Replica (High read concurrency)"),
+                ]
+            ))
+
         if sig["has_s3"] and "s3_lifecycle" not in already_asked_ids:
             candidates.append(ClarificationQuestion(
                 id="s3_lifecycle",
@@ -229,6 +258,34 @@ class ClarificationEngine:
                     ClarificationOption(value="low", label="Low volume (< 50,000 messages/day)"),
                     ClarificationOption(value="moderate", label="Moderate volume (~500,000 messages/day with standard batching)"),
                     ClarificationOption(value="high", label="High volume (1M+ messages/day with reserved Lambda concurrency)"),
+                ]
+            ))
+
+        if sig.get("has_redis") and "redis_caching" not in already_asked_ids:
+            candidates.append(ClarificationQuestion(
+                id="redis_caching",
+                field_key="redis_caching",
+                text="What caching topology and eviction strategy should be configured for Redis?",
+                explanation="Multi-AZ replication provides zero-downtime failover for critical session caches and rate limiters.",
+                question_type="multiple_choice",
+                options=[
+                    ClarificationOption(value="cluster_multi_az", label="Multi-AZ with Automatic Failover (Production standard with 2+ replicas)"),
+                    ClarificationOption(value="single_node", label="Single Node Cache (Cost-optimized for non-critical transient caching)"),
+                    ClarificationOption(value="read_replica_cluster", label="Clustered Redis with 3 Read Replicas (High read-throughput)"),
+                ]
+            ))
+
+        if sig["has_rds"] and "db_ha_topology" not in already_asked_ids:
+            candidates.append(ClarificationQuestion(
+                id="db_ha_topology",
+                field_key="db_ha_topology",
+                text="What is your required database redundancy and failover policy?",
+                explanation="Multi-AZ standby deployments replicate synchronously to a second availability zone to meet strict 99.9% RTO/RPO SLAs.",
+                question_type="multiple_choice",
+                options=[
+                    ClarificationOption(value="multi_az_standby", label="Multi-AZ Standby Deployment (Automated failover in under 60 seconds)"),
+                    ClarificationOption(value="single_az", label="Single-AZ Deployment (Lower cost, best for development or non-critical DBs)"),
+                    ClarificationOption(value="multi_az_read_replica", label="Multi-AZ + 1 Read Replica (High read concurrency)"),
                 ]
             ))
 

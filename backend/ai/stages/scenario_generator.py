@@ -3,7 +3,7 @@ Scenario generator: produces 3 distinct, production-grade architectural scenario
 (cost_optimized, recommended, high_availability) with honest assumptions and trade-offs.
 """
 from typing import Any, Dict, List
-from ai.stages.sizing_engine import size_aws_workload, size_azure_workload
+from ai.stages.sizing_engine import size_aws_workload, size_azure_workload, parse_workload_signals, analyze_budget_feasibility
 from models.schemas import ScenarioResource
 
 
@@ -66,6 +66,14 @@ def generate_scenarios_for_provider(provider: str, req: Dict[str, Any]) -> List[
             exclusions = ["Active/Active multi-region database clustering"]
             cost_drivers = ["Read replica instance and secondary storage costs", "High compute node count"]
             limitations = ["Higher fixed base commitment"]
+
+        sig = parse_workload_signals(req)
+        budget_analysis = analyze_budget_feasibility(sig.get("target_budget"), monthly_total, raw_resources, p)
+        if budget_analysis["has_budget"]:
+            variance_sign = "+$" if budget_analysis["variance"] > 0 else "-$"
+            assumptions.insert(0, f"Target Budget: ${budget_analysis['target_budget']:.2f}/mo (Actual: ${monthly_total:.2f}/mo, Variance: {variance_sign}{abs(budget_analysis['variance']):.2f}/mo)")
+            if not budget_analysis["is_within_budget"]:
+                limitations.insert(0, budget_analysis["justification"])
 
         scenarios.append({
             "provider": p,

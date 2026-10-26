@@ -15,6 +15,7 @@ import ReactFlow, {
   addEdge,
   Connection,
   MarkerType,
+  ConnectionMode,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { Server, Database, HardDrive, Shield, Activity, Globe, Zap, Cpu } from 'lucide-react'
@@ -62,29 +63,68 @@ function ServiceNodeComponent({ data, selected }: NodeProps) {
     <div
       className={`min-w-[195px] max-w-[240px] rounded-xl border-2 p-3 shadow-xs transition-shadow duration-150 select-none cursor-grab active:cursor-grabbing ${getBorderColor()}`}
     >
-      {/* 4-way connect handles (Top, Bottom, Left, Right) */}
+      {/* 4-way connect handles with dual source and target for seamless to-and-fro connections */}
+      {/* Top handles */}
       <Handle
         type="target"
         position={Position.Top}
         id="top"
+        style={{ left: '42%' }}
         className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
       />
+      <Handle
+        type="source"
+        position={Position.Top}
+        id="top-source"
+        style={{ left: '58%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
+      />
+
+      {/* Bottom handles */}
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
+        style={{ left: '58%' }}
         className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
       />
       <Handle
         type="target"
+        position={Position.Bottom}
+        id="bottom-target"
+        style={{ left: '42%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
+      />
+
+      {/* Left handles */}
+      <Handle
+        type="target"
         position={Position.Left}
         id="left"
+        style={{ top: '42%' }}
         className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
       />
       <Handle
         type="source"
+        position={Position.Left}
+        id="left-source"
+        style={{ top: '58%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
+      />
+
+      {/* Right handles */}
+      <Handle
+        type="source"
         position={Position.Right}
         id="right"
+        style={{ top: '58%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
+      />
+      <Handle
+        type="target"
+        position={Position.Right}
+        id="right-target"
+        style={{ top: '42%' }}
         className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
       />
 
@@ -207,6 +247,7 @@ export function ArchitectureDiagram({ initialNodes, initialEdges, onChange }: Ar
         onConnect={onConnect}
         onNodeDragStop={handleNodeDragStop}
         onEdgesDelete={handleEdgesDelete}
+        connectionMode={ConnectionMode.Loose}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         attributionPosition="bottom-right"

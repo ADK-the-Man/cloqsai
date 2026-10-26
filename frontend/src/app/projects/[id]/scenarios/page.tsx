@@ -12,6 +12,8 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { ScenarioCard } from '@/components/scenarios/ScenarioCard'
 import { CostComparisonChart } from '@/components/scenarios/CostComparisonChart'
 import { AddServiceModal } from '@/components/scenarios/AddServiceModal'
+import { PromptEditorCard } from '@/components/conversation/PromptEditorCard'
+import { toast } from 'sonner'
 import { getToken } from '@/lib/auth'
 
 const SKU_RATES: Record<string, number> = {
@@ -217,6 +219,48 @@ export default function ScenariosPage() {
     }
   }
 
+  const handleDeleteResource = async (scenarioId: string, resourceId: string) => {
+    if (!confirm('Remove this service line item from the scenario?')) return
+    try {
+      const token = getToken()
+      const res = await fetch(`/api/v1/projects/${id}/scenarios/${scenarioId}/resources/${resourceId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        await fetchScenarios()
+        toast.success('Service removed from scenario')
+      } else {
+        toast.error('Failed to remove service')
+      }
+    } catch (err) {
+      console.error('Failed to delete resource', err)
+      toast.error('Network error removing service')
+    }
+  }
+
+  const handleRerunScenarios = async () => {
+    setLoading(true)
+    try {
+      const token = getToken()
+      const genRes = await fetch(`/api/v1/projects/${id}/scenarios/generate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (genRes.ok) {
+        const data = await genRes.json()
+        setScenarios(data)
+      } else {
+        await fetchScenarios()
+      }
+    } catch (err) {
+      console.error(err)
+      await fetchScenarios()
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleGenerateEstimates = async () => {
     const scenarioIdList = Object.values(selectedIds)
     if (scenarioIdList.length === 0) return
@@ -293,6 +337,12 @@ export default function ScenariosPage() {
           )}
         </Button>
       </div>
+
+      {/* Initial User Prompt Viewer & In-Place Editor */}
+      <PromptEditorCard
+        projectId={id}
+        onRerun={handleRerunScenarios}
+      />
 
       {/* Recharts Monthly Cost Comparison Chart */}
       <CostComparisonChart data={chartData} />
@@ -491,15 +541,26 @@ export default function ScenariosPage() {
                                 </Button>
                               </div>
                             ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => startEditResource(r)}
-                                className="h-7 px-2 text-[11px] gap-1 text-slate-600 hover:text-blue-600"
-                              >
-                                <Edit2 className="h-3 w-3" />
-                                <span>Edit</span>
-                              </Button>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => startEditResource(r)}
+                                  className="h-7 px-2 text-[11px] gap-1 text-slate-600 hover:text-blue-600"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                  <span>Edit</span>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDeleteResource(scen.id, r.id)}
+                                  className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                  title="Remove service"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                             )}
                           </TableCell>
                         </TableRow>

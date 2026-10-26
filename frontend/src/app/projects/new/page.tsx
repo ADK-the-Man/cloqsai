@@ -28,20 +28,20 @@ const POPULAR_REGIONS = [
 
 export default function NewProjectPage() {
   const router = useRouter()
-  const [name, setName] = useState('Enterprise Web Platform')
-  const [prompt, setPrompt] = useState(EXAMPLE_PROMPT)
+  const [name, setName] = useState('')
+  const [prompt, setPrompt] = useState('')
   const [provider, setProvider] = useState<'both' | 'aws' | 'azure'>('both')
   const [loading, setLoading] = useState(false)
 
-  // Explicit Non-Hidden Architectural Parameters
+  // Explicit Non-Hidden Architectural Parameters (Empty defaults, purely optional overrides)
   const [selectedRegion, setSelectedRegion] = useState('us-east-1')
   const [customRegion, setCustomRegion] = useState('')
-  const [users, setUsers] = useState('150')
-  const [budget, setBudget] = useState('500')
-  const [availability, setAvailability] = useState('99.9%')
-  const [dbEngine, setDbEngine] = useState('PostgreSQL')
-  const [storageGb, setStorageGb] = useState('100')
-  const [backupRetention, setBackupRetention] = useState('7 days')
+  const [users, setUsers] = useState('')
+  const [budget, setBudget] = useState('')
+  const [availability, setAvailability] = useState('')
+  const [dbEngine, setDbEngine] = useState('auto')
+  const [storageGb, setStorageGb] = useState('')
+  const [backupRetention, setBackupRetention] = useState('')
 
   const effectiveRegion = selectedRegion === 'custom' ? (customRegion.trim() || 'us-east-1') : selectedRegion
 
@@ -71,12 +71,39 @@ export default function NewProjectPage() {
       if (!projRes.ok) throw new Error('Failed to create project')
       const project = await projRes.json()
 
-      // 2. Extract requirements from natural language description with rich structured specifications
+      // 2. Extract requirements only including parameters the user actually provided
+      const structuredParams: string[] = []
+      if (effectiveRegion && effectiveRegion !== 'us-east-1') {
+        structuredParams.push(`Region: ${effectiveRegion}`)
+      }
+      if (users.trim()) {
+        structuredParams.push(`Users: ${users.trim()}`)
+      }
+      if (budget.trim()) {
+        structuredParams.push(`Budget: $${budget.trim()}/mo`)
+      }
+      if (availability.trim()) {
+        structuredParams.push(`Availability: ${availability.trim()}`)
+      }
+      if (dbEngine !== 'auto' && dbEngine.trim()) {
+        structuredParams.push(`Database Engine: ${dbEngine.trim()}`)
+      }
+      if (storageGb.trim()) {
+        structuredParams.push(`Storage: ${storageGb.trim()} GB`)
+      }
+      if (backupRetention.trim()) {
+        structuredParams.push(`Backup Retention: ${backupRetention.trim()}`)
+      }
+
+      const fullRawText = structuredParams.length > 0
+        ? `${prompt.trim()}\n\nExplicit Parameters:\n${structuredParams.join('\n')}`
+        : prompt.trim()
+
       await fetch(`/api/v1/projects/${project.id}/requirements/extract`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          raw_text: `${prompt}\nRegion: ${effectiveRegion}\nUsers: ${users}\nBudget: $${budget}/mo\nAvailability: ${availability}\nDatabase Engine: ${dbEngine}\nDatabase Storage: ${storageGb} GB\nBackup Retention: ${backupRetention}`,
+          raw_text: fullRawText,
         }),
       })
 
@@ -276,10 +303,12 @@ export default function NewProjectPage() {
                       onChange={(e) => setDbEngine(e.target.value)}
                       className="w-full text-xs h-8 px-2.5 rounded-md border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
                     >
+                      <option value="auto">Auto (Detect from prompt)</option>
                       <option value="PostgreSQL">PostgreSQL</option>
                       <option value="MySQL">MySQL</option>
                       <option value="MongoDB/DocumentDB">DocumentDB / MongoDB</option>
                       <option value="Redis/MemoryDB">Redis / In-Memory Cache</option>
+                      <option value="none">No Database Needed</option>
                     </select>
                   </div>
 

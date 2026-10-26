@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { RequirementsSummary } from '@/components/conversation/RequirementsSummary'
 import { ChatMessage } from '@/components/conversation/ChatMessage'
 import { QuestionCard } from '@/components/conversation/QuestionCard'
+import { PromptEditorCard } from '@/components/conversation/PromptEditorCard'
 import { getToken } from '@/lib/auth'
 
 export default function DiscoverPage() {
@@ -129,6 +130,13 @@ export default function DiscoverPage() {
           </Link>
         </Button>
       </div>
+
+      {/* Initial User Prompt Viewer & In-Place Editor */}
+      <PromptEditorCard
+        projectId={id}
+        initialPrompt={conversation?.collected_requirements?.raw_text}
+        onRerun={fetchConversation}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left: Summary panel */}

@@ -17,6 +17,33 @@ AZURE_REGION_MAP = {
 }
 
 
+def check_feature_intent(raw_text: str, positive_keywords: List[str], negative_keywords: List[str] = None) -> bool:
+    """
+    Checks if any positive keyword is present and not explicitly negated
+    (e.g., 'no file upload', 'without database', 'do not need s3').
+    """
+    if negative_keywords:
+        for neg in negative_keywords:
+            if neg in raw_text:
+                return False
+
+    negation_prefixes = [
+        "no ", "not ", "without ", "don't need ", "dont need ", "do not need ",
+        "never ", "exclude ", "excluding ", "zero ", "no need for ", "skip ", "no more "
+    ]
+
+    for kw in positive_keywords:
+        if kw in raw_text:
+            is_neg = False
+            for neg in negation_prefixes:
+                if f"{neg}{kw}" in raw_text or f"{neg}file {kw}" in raw_text or f"{neg}files {kw}" in raw_text:
+                    is_neg = True
+                    break
+            if not is_neg:
+                return True
+    return False
+
+
 def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
     raw_text = (req.get("raw_text") or req.get("raw_notes") or "").lower()
     for v in req.values():
@@ -24,6 +51,22 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
             raw_text += " " + v.lower()
         elif isinstance(v, list):
             raw_text += " " + " ".join(str(item).lower() for item in v)
+
+    # Extract target budget if specified
+    target_budget: Optional[float] = None
+    if req.get("budget_usd_month") or req.get("budget"):
+        try:
+            target_budget = float(req.get("budget_usd_month") or req.get("budget"))
+        except (ValueError, TypeError):
+            pass
+    if target_budget is None:
+        import re
+        budget_match = re.search(r"budget[:\s]+(?:\$)?(\d+(?:\.\d+)?)", raw_text) or re.search(r"(?:\$)?(\d+(?:\.\d+)?)\s*(?:budget|per month|/mo|a month)", raw_text)
+        if budget_match:
+            try:
+                target_budget = float(budget_match.group(1))
+            except (ValueError, TypeError):
+                pass
 
     # 1. Check explicit region parameter first
     region = "us-east-1"
@@ -70,29 +113,52 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         else:
             region = "us-east-1"
 
-    s3_keywords = [
+    # S3 / Object Storage (Only if requested, not negated)
+    s3_pos = [
         "s3", "bucket", "blob", "object storage", "upload", "uploads", "uploading",
-        "file", "files", "attachment", "attachments", "document", "documents",
+        "file upload", "user uploads", "attachment", "attachments", "document", "documents",
         "media", "photo", "photos", "image", "images", "asset", "assets",
-        "video", "videos", "pdf", "pdfs", "storage pool", "s3_lifecycle",
-        "s3_count", "storage_total_gb", "file_storage", "binary", "data lake"
+        "video", "videos", "pdf", "pdfs", "storage pool", "s3_lifecycle"
     ]
-    has_s3 = (
-        any(k in raw_text for k in s3_keywords)
-        or bool(req.get("has_s3"))
-        or bool(req.get("s3_lifecycle"))
-        or bool(req.get("file_upload"))
-        or bool(req.get("storage_total_gb"))
-        or ("storage" in req and "db" not in str(req.get("storage", "")).lower())
-    )
+    s3_neg = [
+        "no file upload", "no file uploads", "no upload", "no uploads",
+        "without file upload", "without upload", "no s3", "without s3",
+        "no bucket", "no blob", "no files", "without uploads", "don't need s3", "dont need s3"
+    ]
+    has_s3 = check_feature_intent(raw_text, s3_pos, s3_neg) or bool(req.get("has_s3"))
+
+    # In-Memory Cache (Redis / ElastiCache / Azure Redis)
+    redis_pos = [
+        "redis", "cache", "caching", "elasticache", "valkey", "memorydb",
+        "in-memory", "memcached", "azure redis", "session cache"
+    ]
+    redis_neg = [
+        "no cache", "no redis", "without cache", "without redis",
+        "no caching", "don't need cache", "dont need redis"
+    ]
+    has_redis = check_feature_intent(raw_text, redis_pos, redis_neg) or bool(req.get("has_redis"))
+
+    # Relational Database (RDS / PostgreSQL / MySQL)
+    rds_pos = [
+        "rds", "postgres", "postgresql", "mysql", "mariadb", "relational database",
+        "sql database", "aurora", "database", "from db", "to db", "in db",
+        "read and write", "req/min from db", "database storage"
+    ]
+    rds_neg = [
+        "no database", "no rds", "without database", "without rds",
+        "no db", "without db", "no sql", "don't need db", "dont need database"
+    ]
+    has_rds = check_feature_intent(raw_text, rds_pos, rds_neg) or bool(req.get("has_rds")) or ("db_engine" in req and req["db_engine"] and str(req["db_engine"]).lower() != "none")
 
     signals = {
         "region": region,
+        "target_budget": target_budget,
         "has_eks": any(k in raw_text for k in ["eks", "aks", "kubernetes", "k8s", "pod", "cluster"]),
-        "has_opensearch": "opensearch" in raw_text or "elasticsearch" in raw_text,
-        "has_lambda": "lambda" in raw_text or "serverless" in raw_text or "function" in raw_text,
-        "has_sqs": "sqs" in raw_text or "servicebus" in raw_text or "service bus" in raw_text or "message queue" in raw_text,
-        "has_rds": "rds" in raw_text or "postgres" in raw_text or "mysql" in raw_text or "database" in raw_text or True,
+        "has_opensearch": check_feature_intent(raw_text, ["opensearch", "elasticsearch"], ["no opensearch", "without opensearch"]),
+        "has_lambda": check_feature_intent(raw_text, ["lambda", "serverless", "function"], ["no lambda", "no serverless"]),
+        "has_sqs": check_feature_intent(raw_text, ["sqs", "servicebus", "service bus", "message queue", "queue"], ["no queue", "no sqs", "without queue"]),
+        "has_rds": has_rds,
+        "has_redis": has_redis,
         "has_s3": has_s3,
         "s3_count": 2 if ("two s3" in raw_text or "2 s3" in raw_text or "2 buckets" in raw_text or "two bucket" in raw_text or "multiple bucket" in raw_text) else 1,
         "node_count": 2 if ("two linux nodes" in raw_text or "2 linux nodes" in raw_text or "two nodes" in raw_text or "2 nodes" in raw_text or "two linux" in raw_text or "2 linux" in raw_text) else 2,
@@ -261,6 +327,32 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
                 "Synchronous standby replication in 2nd AZ" if is_ha else "Single-AZ non-HA",
                 "7-day automated backup retention"
             ],
+            "validation_status": "validated",
+            "pricing_source": "AWS Retail Calculator Catalog"
+        })
+
+    # In-Memory Cache (Amazon ElastiCache for Redis)
+    if sig.get("has_redis"):
+        redis_sku = "cache.r6g.large" if concurrent_users >= 1000 else "cache.t4g.medium"
+        redis_rate = 0.068 if "t4g" in redis_sku else 0.174
+        is_ha = scenario_type in ["recommended", "high_availability"]
+        redis_qty = 2 if is_ha else 1
+        redis_monthly = round(redis_rate * 730 * redis_qty, 2)
+        resources.append({
+            "id": "aws-redis-1",
+            "resource_name": "Amazon ElastiCache for Redis",
+            "provider": "aws",
+            "service_family": "database",
+            "service_name": "AmazonElastiCache",
+            "region": aws_region,
+            "sku": redis_sku,
+            "quantity": redis_qty,
+            "availability_config": "Multi-AZ with Automatic Failover (2 Nodes)" if is_ha else "Single-Node Cache",
+            "pricing_model": "On-Demand",
+            "monthly_cost_usd": redis_monthly,
+            "annual_cost_usd": round(redis_monthly * 12, 2),
+            "rationale": "Sub-millisecond in-memory Redis cache for database query offloading, rate limiting, and session state.",
+            "assumptions": [f"{redis_qty}x {redis_sku} Redis 7.x nodes", "Automatic daily snapshot backups"],
             "validation_status": "validated",
             "pricing_source": "AWS Retail Calculator Catalog"
         })
@@ -648,6 +740,30 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
             "pricing_source": "Azure Retail Prices API"
         })
 
+    # In-Memory Cache (Azure Cache for Redis)
+    if sig.get("has_redis"):
+        is_ha = scenario_type in ["recommended", "high_availability"]
+        redis_sku = "Standard_C1" if is_ha else "Basic_C0"
+        redis_monthly = 54.75 if is_ha else 16.06
+        resources.append({
+            "id": "azure-redis-1",
+            "resource_name": "Azure Cache for Redis",
+            "provider": "azure",
+            "service_family": "database",
+            "service_name": "Azure Redis",
+            "region": azure_region,
+            "sku": redis_sku,
+            "quantity": 1,
+            "availability_config": "Standard (Two-node Primary/Secondary replica)" if is_ha else "Basic (Single node)",
+            "pricing_model": "Pay-as-you-go",
+            "monthly_cost_usd": redis_monthly,
+            "annual_cost_usd": round(redis_monthly * 12, 2),
+            "rationale": "High-throughput managed Redis data cache for application session and query offloading.",
+            "assumptions": [f"Azure Cache for Redis {redis_sku} tier", "Dedicated SLA with TLS encryption"],
+            "validation_status": "validated",
+            "pricing_source": "Azure Retail Prices API"
+        })
+
     # 4. OpenSearch equivalent: Azure AI Search
     if sig["has_opensearch"]:
         search_cost = 73.00 if scenario_type == "cost_optimized" else 145.00
@@ -767,3 +883,57 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
         r["annual_cost_usd"] = round(r["monthly_cost_usd"] * 12, 2)
 
     return resources
+
+
+def analyze_budget_feasibility(target_budget: Optional[float], monthly_cost: float, resources: List[Dict[str, Any]], provider: str) -> Dict[str, Any]:
+    """
+    Analyzes whether the estimated infrastructure cost aligns with the user's target budget,
+    and provides clear engineering justifications and trade-off advice if exceeded.
+    """
+    if not target_budget or target_budget <= 0:
+        return {
+            "has_budget": False,
+            "target_budget": None,
+            "monthly_cost": monthly_cost,
+            "variance": 0.0,
+            "is_within_budget": True,
+            "justification": "No target budget cap specified by user."
+        }
+
+    variance = round(monthly_cost - target_budget, 2)
+    is_within = variance <= 0
+
+    if is_within:
+        justification = f"Architecture cost of ${monthly_cost:.2f}/mo is within your target budget of ${target_budget:.2f}/mo."
+    else:
+        fixed_reasons = []
+        for r in resources:
+            sku = (r.get("sku") or "").lower()
+            name = (r.get("resource_name") or "").lower()
+            cost = float(r.get("monthly_cost_usd") or 0.0)
+            if "cluster" in sku or "eks" in name or "aks" in name or "control plane" in name:
+                fixed_reasons.append(f"Managed Kubernetes Control Plane (~${cost:.2f}/mo)")
+            elif "rds" in name or "database" in name or "postgresql" in name:
+                fixed_reasons.append(f"Production Relational DB (~${cost:.2f}/mo)")
+            elif "redis" in name or "elasticache" in name:
+                fixed_reasons.append(f"In-Memory Cache (~${cost:.2f}/mo)")
+
+        reasons_str = ", ".join(fixed_reasons) if fixed_reasons else "Compute & Multi-AZ replication minimums"
+        provider_name = "AWS" if provider.lower() == "aws" else "Azure"
+        serverless_rec = "AWS App Runner / Fargate" if provider.lower() == "aws" else "Azure Container Apps"
+        justification = (
+            f"Target budget was ${target_budget:.2f}/mo, but baseline production architecture requires ${monthly_cost:.2f}/mo "
+            f"(+${variance:.2f}/mo variance). Justification: Production reliability requirements ({reasons_str}) "
+            f"cannot safely be provisioned under ${target_budget:.2f}/mo with Multi-AZ SLA. "
+            f"To achieve <${target_budget:.2f}/mo, consider serverless containers ({serverless_rec} with 0 idle cost) "
+            f"or a single burstable compute instance without dedicated Kubernetes control plane overhead."
+        )
+
+    return {
+        "has_budget": True,
+        "target_budget": target_budget,
+        "monthly_cost": monthly_cost,
+        "variance": variance,
+        "is_within_budget": is_within,
+        "justification": justification
+    }

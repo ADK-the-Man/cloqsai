@@ -142,6 +142,16 @@ def lookup_sku_monthly_cost(
             storage_gb = cfg.get("storage_gb", 125)
             return round(storage_gb * 0.023 * qty + 0.50, 2)
 
+        elif "redis" in sku_clean.lower() or "cache" in sku_clean.lower() or "elasticache" in sku_clean.lower():
+            if "r6g" in sku_clean.lower():
+                return round(148.92 * qty, 2)
+            elif "t4g" in sku_clean.lower():
+                return round(24.82 * qty, 2)
+            return round(45.00 * qty, 2)
+
+        elif "waf" in sku_clean.lower():
+            return round(30.00 * qty, 2)
+
         elif fam == "compute" and ("lambda" in sku_clean.lower() or "serverless" in sku_clean.lower()):
             return 17.67 * qty
 
@@ -169,6 +179,23 @@ def lookup_sku_monthly_cost(
             elif "premium" in sku_clean.lower():
                 return 50.00 * qty
             return 20.00 * qty
+
+        elif fam == "storage" or "blob" in sku_clean.lower():
+            storage_gb = cfg.get("storage_gb", 100)
+            return round(storage_gb * 0.0208 * qty + 0.50, 2)
+
+        elif "redis" in sku_clean.lower() or "cache" in sku_clean.lower():
+            if "c2" in sku_clean.lower():
+                return round(109.50 * qty, 2)
+            elif "c1" in sku_clean.lower():
+                return round(54.75 * qty, 2)
+            return round(75.00 * qty, 2)
+
+        elif "waf" in sku_clean.lower():
+            return round(36.00 * qty, 2)
+
+        elif fam == "messaging" or "servicebus" in sku_clean.lower():
+            return round(10.00 * qty, 2)
 
         elif fam == "security" or "keyvault" in sku_clean.lower() or "key vault" in sku_clean.lower() or "secret" in sku_clean.lower():
             return 3.00 * qty

@@ -57,6 +57,8 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
                 eks_deps.append("opensearch")
             if sig["has_sqs"]:
                 eks_deps.append("sqs")
+            if sig.get("has_redis"):
+                eks_deps.append("redis")
             if sig.get("has_s3"):
                 eks_deps.append("s3")
             eks_deps.append("cloudwatch")
@@ -77,6 +79,8 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
             app_deps = ["cloudwatch"]
             if sig["has_rds"]:
                 app_deps.append("rds")
+            if sig.get("has_redis"):
+                app_deps.append("redis")
             if sig.get("has_s3"):
                 app_deps.append("s3")
             services.append(ArchitectureService(
@@ -147,6 +151,20 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
                 rationale="Centralized secret rotation, credentials, and API key management.",
                 dependencies=[],
                 diagram_position={"x": 380, "y": 350}
+            ))
+
+        if sig.get("has_redis"):
+            services.append(ArchitectureService(
+                id="redis",
+                name="Amazon ElastiCache Redis",
+                provider="aws",
+                service_family="database",
+                service_name="AmazonElastiCache",
+                region=aws_region,
+                purpose="In-memory cache & fast session store",
+                rationale="Sub-millisecond query caching, rate limiting, and session offloading.",
+                dependencies=[],
+                diagram_position={"x": 540, "y": 350}
             ))
 
         if sig["has_opensearch"]:
@@ -250,6 +268,8 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
                 aks_deps.append("search")
             if sig["has_sqs"]:
                 aks_deps.append("servicebus")
+            if sig.get("has_redis"):
+                aks_deps.append("redis")
             if sig.get("has_s3"):
                 aks_deps.append("blob")
             aks_deps.append("monitor")
@@ -270,6 +290,8 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
             vmss_deps = ["monitor"]
             if sig["has_rds"]:
                 vmss_deps.append("pg_flex")
+            if sig.get("has_redis"):
+                vmss_deps.append("redis")
             if sig.get("has_s3"):
                 vmss_deps.append("blob")
             services.append(ArchitectureService(
@@ -340,6 +362,20 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
                 rationale="Centralized secret, key, and certificate management for AKS microservices and mid-server.",
                 dependencies=[],
                 diagram_position={"x": 380, "y": 350}
+            ))
+
+        if sig.get("has_redis"):
+            services.append(ArchitectureService(
+                id="redis",
+                name="Azure Cache for Redis",
+                provider="azure",
+                service_family="database",
+                service_name="Azure Redis",
+                region=azure_region,
+                purpose="Managed in-memory cache & fast session store",
+                rationale="Sub-millisecond data cache reducing backend PostgreSQL load and speeding API responses.",
+                dependencies=[],
+                diagram_position={"x": 540, "y": 350}
             ))
 
         if sig["has_opensearch"]:

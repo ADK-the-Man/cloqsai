@@ -12,6 +12,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ArchitectureDiagram } from '@/components/architecture/ArchitectureDiagram'
+import { PromptEditorCard } from '@/components/conversation/PromptEditorCard'
 import { getToken } from '@/lib/auth'
 
 export default function ArchitecturePage() {
@@ -102,29 +103,52 @@ export default function ArchitecturePage() {
     }
   }
 
-  useEffect(() => {
-    const fetchArchitectures = async () => {
-      try {
-        const token = getToken()
-        const res = await fetch(`/api/v1/projects/${id}/architecture`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setArchitectures(data)
-          if (data.length > 0) {
-            setActiveTab(data[0].provider)
-          }
+  const fetchArchitectures = async () => {
+    try {
+      const token = getToken()
+      const res = await fetch(`/api/v1/projects/${id}/architecture`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setArchitectures(data)
+        if (data.length > 0) {
+          setActiveTab(data[0].provider)
         }
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
       }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     if (id) fetchArchitectures()
   }, [id])
+
+  const handleRerunPipeline = async () => {
+    setLoading(true)
+    try {
+      const token = getToken()
+      const genRes = await fetch(`/api/v1/projects/${id}/architecture/generate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (genRes.ok) {
+        const data = await genRes.json()
+        setArchitectures(data)
+        if (data.length > 0) setActiveTab(data[0].provider)
+      } else {
+        await fetchArchitectures()
+      }
+    } catch (err) {
+      console.error(err)
+      await fetchArchitectures()
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -156,6 +180,12 @@ export default function ArchitecturePage() {
           </Link>
         </Button>
       </div>
+
+      {/* Initial User Prompt Viewer & In-Place Editor */}
+      <PromptEditorCard
+        projectId={id}
+        onRerun={handleRerunPipeline}
+      />
 
       {architectures.length > 1 && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
