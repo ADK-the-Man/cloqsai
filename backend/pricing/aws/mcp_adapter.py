@@ -4,6 +4,7 @@ Interacts with official sample-aws-pricing-calculator-mcp running as sidecar via
 or computes workload-based AWS pricing directly when sidecar is booting or offline.
 """
 import logging
+import re
 from typing import Any, Dict, List, Optional
 import httpx
 from core.config import settings
@@ -102,13 +103,70 @@ class AWSMCPClient:
                                 }
                             }
                         })
-                    elif "control plane" in r_name or ("eks" in svc_name and "node" not in r_name and "worker" not in r_name):
+                    elif "control plane" in r_name or ("eks" in svc_name and "node" not in r_name and "worker" not in r_name and "gateway" not in r_name):
                         mcp_services.append({
                             "service": "awsEks",
                             "config": {
                                 "region": reg,
-                                "description": r.get("resource_name", "Amazon EKS Control Plane"),
+                                "description": r.get("resource_name", "Amazon EKS Cluster Control Plane"),
                                 "numberOfEKSClusters": "1"
+                            }
+                        })
+                    elif "mwaa" in svc_name or "airflow" in r_name or "mwaa" in r_name or "apache airflow" in r_name:
+                        env_tier = "Small"
+                        sku = str(r.get("sku", "")).lower()
+                        if "medium" in sku or "mw1.medium" in sku:
+                            env_tier = "Medium"
+                        elif "large" in sku or "mw1.large" in sku:
+                            env_tier = "Large"
+                        elif "xlarge" in sku:
+                            env_tier = "XLarge"
+                        elif "2xlarge" in sku:
+                            env_tier = "2XLarge"
+
+                        mcp_services.append({
+                            "service": "amazonManagedWorkflowsForApacheAirflow",
+                            "estimateFor": "mwaa",
+                            "config": {
+                                "region": reg,
+                                "description": r.get("resource_name", "Amazon MWAA (Managed Apache Airflow)"),
+                                "environmentType": env_tier,
+                                "dataStorageSize": {"value": "10", "unit": "gb|NA"},
+                                "minWorkers": "1",
+                                "maxWorkers": "2",
+                                "numberOfSchedulers": "2",
+                                "Minimum_web_servers": "2"
+                            }
+                        })
+                    elif "secret" in r_name or "secrets" in r_name or fam == "security" or "secretsmanager" in svc_name:
+                        sec_count = 5
+                        if r.get("quantity") and int(r.get("quantity")) > 1:
+                            sec_count = int(r.get("quantity"))
+                        sec_match = re.search(r'(\d+)\s*secret', r_name)
+                        if sec_match:
+                            try:
+                                sec_count = int(sec_match.group(1))
+                            except (ValueError, TypeError):
+                                pass
+
+                        mcp_services.append({
+                            "service": "awsSecretsManager",
+                            "estimateFor": "awssecretsmanager",
+                            "config": {
+                                "region": reg,
+                                "description": r.get("resource_name", f"AWS Secrets Manager ({sec_count} Secrets)"),
+                                "NumberOfSecrets": str(sec_count),
+                                "secretDuration": {"value": "30", "unit": "day"},
+                                "numberOfAPIs": {"value": "10000", "unit": "perMonth"}
+                            }
+                        })
+                    elif "elastic container registry" in r_name or "container registry" in r_name or "amazonelasticcontainerregistry" in svc_name or fam == "containers" or bool(re.search(r'\becr\b', r_name)):
+                        mcp_services.append({
+                            "service": "amazonElasticContainerRegistry",
+                            "config": {
+                                "region": reg,
+                                "description": r.get("resource_name", "Amazon Elastic Container Registry (ECR)"),
+                                "amountofdatastored": {"value": "25", "unit": "gb|month"}
                             }
                         })
                     elif "lambda" in svc_name or "lambda" in r_name:
@@ -134,32 +192,12 @@ class AWSMCPClient:
                                 "standardQueueRequests": {"value": "5", "unit": "perMonth"}
                             }
                         })
-                    elif "ecr" in r_name or "registry" in r_name or fam == "containers":
-                        mcp_services.append({
-                            "service": "amazonElasticContainerRegistry",
-                            "config": {
-                                "region": reg,
-                                "description": r.get("resource_name", "Amazon Elastic Container Registry"),
-                                "amountofdatastored": {"value": "25", "unit": "gb|month"}
-                            }
-                        })
-                    elif "secret" in r_name or "secrets" in r_name or fam == "security":
-                        mcp_services.append({
-                            "service": "awsSecretsManager",
-                            "config": {
-                                "region": reg,
-                                "description": r.get("resource_name", "AWS Secrets Manager"),
-                                "NumberOfSecrets": "5",
-                                "secretDuration": "30",
-                                "numberOfAPIs": {"value": "10000", "unit": "perMonth"}
-                            }
-                        })
                     elif "rds" in svc_name or "database" in fam or "postgres" in r_name:
                         sku = r.get("sku", "db.t4g.large")
                         if not sku.startswith("db."):
-                            sku = "db.t4g.large"
-                        multi_az = "multi-az" in str(r.get("availability_config", "")).lower()
-                        storage_gb = r.get("config", {}).get("storage_gb", 100)
+                            sku = "db.m6i.large"
+                        multi_az = "multi-az" in str(r.get("availability_config", "")).lower() or "standby" in str(r.get("availability_config", "")).lower()
+                        storage_gb = r.get("config", {}).get("storage_gb", 500 if ("master" in r_name or "replica" in r_name or "slave" in r_name) else 100)
                         mcp_services.append({
                             "service": "amazonRDSPostgreSQLDB",
                             "config": {
@@ -208,9 +246,9 @@ class AWSMCPClient:
                                 "storageAmount": {"value": "100", "unit": "gb|NA"}
                             }
                         })
-                    elif "s3" in svc_name or fam == "storage":
+                    elif "s3" in svc_name or "amazon s3" in r_name or "bucket" in r_name or fam == "storage":
                         qty = int(r.get("quantity") or 1)
-                        storage_amount = r.get("config", {}).get("storage_gb", 125)
+                        storage_amount = r.get("config", {}).get("storage_gb", 1000 if ("2 gb" in r_name or "video" in r_name) else 125)
                         desc_base = r.get("resource_name", "Amazon S3 Bucket")
                         # If quantity > 1, create individual buckets
                         for b_idx in range(1, qty + 1):
@@ -229,7 +267,20 @@ class AWSMCPClient:
                                     "s3StandardGetRequests": "10000"
                                 }
                             })
-                    elif "worker" in r_name or "node" in r_name or "ec2" in svc_name or fam == "compute":
+                    elif "cloudwatch" in svc_name or "cloudwatch" in r_name or fam == "monitoring":
+                        mcp_services.append({
+                            "service": "amazonCloudWatch",
+                            "estimateFor": "CloudWatch",
+                            "config": {
+                                "region": reg,
+                                "description": r.get("resource_name", "CloudWatch Logs & Metrics"),
+                                "sizeOfStandardLogsDataIngested": {"value": "10", "unit": "gb|month"},
+                                "totalNumberOfMetrics": "10",
+                                "numberOfDashboards": "1",
+                                "numberOfStandardAlarms": "5"
+                            }
+                        })
+                    elif "worker" in r_name or "node" in r_name or "ec2" in svc_name or fam == "compute" or "instance" in r_name:
                         sku = r.get("sku", "m6i.large")
                         qty = int(r.get("quantity") or 1)
                         inst_type = sku if ("." in sku and not sku.startswith("db.")) else "m6i.large"
@@ -237,7 +288,7 @@ class AWSMCPClient:
                         # If quantity > 1, explode into separate individual node entries
                         for n_idx in range(1, qty + 1):
                             desc = desc_base
-                            if qty > 1 and "node" not in desc_base.lower():
+                            if qty > 1 and "node" not in desc_base.lower() and "worker" not in desc_base.lower():
                                 desc = f"{desc_base} - Node {n_idx}"
                             elif qty > 1 and f"({qty} nodes)" in desc_base.lower():
                                 desc = f"EKS Linux Worker Node {n_idx}"
