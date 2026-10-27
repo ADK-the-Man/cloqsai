@@ -103,18 +103,32 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
 
         if sig.get("has_llm_gateway"):
             llm_deps = ["secrets"] if sig.get("has_secrets") else []
-            services.append(ArchitectureService(
-                id="llm_gateway",
-                name="In-House LLM Gateway Cluster",
-                provider="aws",
-                service_family="compute",
-                service_name="AmazonEC2",
-                region=aws_region,
-                purpose="In-house LLM routing & token inference proxy",
-                rationale="Dedicated compute cluster handling sub-30s inference gateway routing and rate limiting.",
-                dependencies=llm_deps,
-                diagram_position={"x": 680, "y": 190}
-            ))
+            if sig.get("no_separate_ec2") or (sig.get("has_eks") and sig.get("no_separate_ec2")):
+                services.append(ArchitectureService(
+                    id="llm_gateway",
+                    name="In-House LLM Gateway (EKS Node Group)",
+                    provider="aws",
+                    service_family="compute",
+                    service_name="AmazonEKS",
+                    region=aws_region,
+                    purpose="In-house LLM routing & token inference proxy on EKS",
+                    rationale="Worker node group attached directly to the EKS cluster (no separate standalone EC2 cluster as requested).",
+                    dependencies=["eks"] + llm_deps,
+                    diagram_position={"x": 680, "y": 190}
+                ))
+            else:
+                services.append(ArchitectureService(
+                    id="llm_gateway",
+                    name="In-House LLM Gateway Cluster",
+                    provider="aws",
+                    service_family="compute",
+                    service_name="AmazonEC2",
+                    region=aws_region,
+                    purpose="In-house LLM routing & token inference proxy",
+                    rationale="Dedicated compute cluster handling sub-30s inference gateway routing and rate limiting.",
+                    dependencies=llm_deps,
+                    diagram_position={"x": 680, "y": 190}
+                ))
 
         if sig.get("has_mid_server"):
             services.append(ArchitectureService(
@@ -371,18 +385,32 @@ def build_architecture_graph(provider: str, requirements: Dict[str, Any]) -> Tup
 
         if sig.get("has_llm_gateway"):
             llm_deps = ["keyvault"] if sig.get("has_secrets") else []
-            services.append(ArchitectureService(
-                id="llm_gateway",
-                name="In-House LLM Gateway (VMSS)",
-                provider="azure",
-                service_family="compute",
-                service_name="Virtual Machines",
-                region=azure_region,
-                purpose="In-house LLM routing & token inference proxy",
-                rationale="Dedicated VMSS cluster handling sub-30s inference gateway routing and rate limiting.",
-                dependencies=llm_deps,
-                diagram_position={"x": 680, "y": 190}
-            ))
+            if sig.get("no_separate_ec2") or sig.get("has_eks"):
+                services.append(ArchitectureService(
+                    id="llm_gateway",
+                    name="In-House LLM Gateway (AKS Pods)",
+                    provider="azure",
+                    service_family="compute",
+                    service_name="Azure Kubernetes Service",
+                    region=azure_region,
+                    purpose="In-house LLM routing & token inference proxy on AKS",
+                    rationale="Dedicated AKS node pool hosting containerized LLM gateway pods without separate standalone VMs.",
+                    dependencies=["aks"] + llm_deps,
+                    diagram_position={"x": 680, "y": 190}
+                ))
+            else:
+                services.append(ArchitectureService(
+                    id="llm_gateway",
+                    name="In-House LLM Gateway (VMSS)",
+                    provider="azure",
+                    service_family="compute",
+                    service_name="Virtual Machines",
+                    region=azure_region,
+                    purpose="In-house LLM routing & token inference proxy",
+                    rationale="Dedicated VMSS cluster handling sub-30s inference gateway routing and rate limiting.",
+                    dependencies=llm_deps,
+                    diagram_position={"x": 680, "y": 190}
+                ))
 
         if sig.get("has_mid_server"):
             services.append(ArchitectureService(

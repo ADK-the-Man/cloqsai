@@ -211,10 +211,19 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         "2 gigabytes", "upto 2 gb", "up to 2 gb", "2g", "2 gb files"
     ])
 
+    # Explicit request for no separate / standalone EC2 instances
+    no_separate_ec2 = any(k in raw_text for k in [
+        "dont want seperate ec2", "dont want separate ec2", "don't want seperate ec2",
+        "don't want separate ec2", "no separate ec2", "no seperate ec2",
+        "no standalone ec2", "without separate ec2", "without seperate ec2",
+        "dont want separate instances", "no separate instances"
+    ])
+
     signals = {
         "region": region,
         "target_budget": target_budget,
-        "has_eks": any(k in raw_text for k in ["eks", "aks", "kubernetes", "k8s", "pod", "cluster"]),
+        "no_separate_ec2": no_separate_ec2,
+        "has_eks": any(k in raw_text for k in ["eks", "aks", "kubernetes", "k8s", "pod", "cluster"]) or no_separate_ec2,
         "has_opensearch": check_feature_intent(raw_text, ["opensearch", "elasticsearch"], ["no opensearch", "without opensearch"]),
         "has_lambda": check_feature_intent(raw_text, ["lambda", "serverless", "function"], ["no lambda", "no serverless"]),
         "has_sqs": check_feature_intent(raw_text, ["sqs", "servicebus", "service bus", "message queue", "queue"], ["no queue", "no sqs", "without queue"]),
@@ -366,32 +375,60 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
 
     # In-House LLM Gateway Cluster
     if sig.get("has_llm_gateway"):
-        llm_sku = "c7i.large" if scenario_type != "high_availability" else "c7i.xlarge"
-        llm_qty = 2
-        llm_hourly = 0.089 if llm_sku == "c7i.large" else 0.178
-        llm_cost = round(llm_hourly * 730 * llm_qty, 2)
-        resources.append({
-            "id": "aws-llm-gateway",
-            "resource_name": "In-House LLM Gateway Cluster",
-            "provider": "aws",
-            "service_family": "compute",
-            "service_name": "AmazonEC2",
-            "region": aws_region,
-            "sku": llm_sku,
-            "quantity": llm_qty,
-            "availability_config": "Multi-AZ (2 Availability Zones)",
-            "pricing_model": "On-Demand",
-            "monthly_cost_usd": llm_cost,
-            "annual_cost_usd": round(llm_cost * 12, 2),
-            "rationale": "Dedicated compute proxy cluster handling token routing, rate limiting, and model load balancing for in-house LLM gateway.",
-            "assumptions": [
-                f"{llm_qty}x {llm_sku} compute-optimized instances",
-                "Sub-30s response timeout guarantee with active health check circuit breakers",
-                "50 GB gp3 root storage per instance"
-            ],
-            "validation_status": "validated",
-            "pricing_source": "AWS Retail Calculator Catalog"
-        })
+        if sig.get("no_separate_ec2") or (sig.get("has_eks") and sig.get("no_separate_ec2")):
+            llm_sku = "c7i.large" if scenario_type != "high_availability" else "c7i.xlarge"
+            llm_qty = 1 if scenario_type == "cost_optimized" else 2
+            llm_hourly = 0.089 if llm_sku == "c7i.large" else 0.178
+            llm_cost = round(llm_hourly * 730 * llm_qty, 2)
+            resources.append({
+                "id": "aws-eks-node-llm",
+                "resource_name": "EKS Worker Node (In-House LLM Gateway)",
+                "provider": "aws",
+                "service_family": "compute",
+                "service_name": "AmazonEKS",
+                "region": aws_region,
+                "sku": llm_sku,
+                "quantity": llm_qty,
+                "availability_config": "Attached to EKS Cluster Node Group",
+                "pricing_model": "On-Demand",
+                "monthly_cost_usd": llm_cost,
+                "annual_cost_usd": round(llm_cost * 12, 2),
+                "rationale": "Dedicated EKS compute node group added directly to the EKS cluster to host LLM gateway pods (no separate standalone EC2 cluster as requested).",
+                "assumptions": [
+                    f"{llm_qty}x {llm_sku} compute-optimized instances added as EKS cluster worker nodes",
+                    "Sub-30s response timeout guarantee with active health check circuit breakers",
+                    "EKS Cluster Autoscaler dynamically manages node capacity"
+                ],
+                "validation_status": "validated",
+                "pricing_source": "AWS Retail Calculator Catalog"
+            })
+        else:
+            llm_sku = "c7i.large" if scenario_type != "high_availability" else "c7i.xlarge"
+            llm_qty = 2
+            llm_hourly = 0.089 if llm_sku == "c7i.large" else 0.178
+            llm_cost = round(llm_hourly * 730 * llm_qty, 2)
+            resources.append({
+                "id": "aws-llm-gateway",
+                "resource_name": "In-House LLM Gateway Cluster",
+                "provider": "aws",
+                "service_family": "compute",
+                "service_name": "AmazonEC2",
+                "region": aws_region,
+                "sku": llm_sku,
+                "quantity": llm_qty,
+                "availability_config": "Multi-AZ (2 Availability Zones)",
+                "pricing_model": "On-Demand",
+                "monthly_cost_usd": llm_cost,
+                "annual_cost_usd": round(llm_cost * 12, 2),
+                "rationale": "Dedicated compute proxy cluster handling token routing, rate limiting, and model load balancing for in-house LLM gateway.",
+                "assumptions": [
+                    f"{llm_qty}x {llm_sku} compute-optimized instances",
+                    "Sub-30s response timeout guarantee with active health check circuit breakers",
+                    "50 GB gp3 root storage per instance"
+                ],
+                "validation_status": "validated",
+                "pricing_source": "AWS Retail Calculator Catalog"
+            })
 
     # Amazon MWAA (Managed Apache Airflow)
     if sig.get("has_airflow"):
@@ -827,31 +864,55 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
             "pricing_source": "Azure Retail Prices API"
         })
 
-    # In-House LLM Gateway (VMSS)
+    # In-House LLM Gateway (VMSS or AKS Node Pool)
     if sig.get("has_llm_gateway"):
-        llm_cost = 70.08 if scenario_type == "cost_optimized" else 140.16
-        resources.append({
-            "id": "azure-llm-gateway",
-            "resource_name": "In-House LLM Gateway (VMSS)",
-            "provider": "azure",
-            "service_family": "compute",
-            "service_name": "Virtual Machines",
-            "region": azure_region,
-            "sku": "Standard_D4s_v5",
-            "quantity": 2,
-            "availability_config": "Zone-Redundant (2 Availability Zones)",
-            "pricing_model": "Pay-as-you-go",
-            "monthly_cost_usd": llm_cost,
-            "annual_cost_usd": round(llm_cost * 12, 2),
-            "rationale": "Dedicated compute cluster for in-house LLM gateway routing, model load balancing, and token rate limiting.",
-            "assumptions": [
-                "2x Standard_D4s_v5 Linux instances",
-                "Sub-30s response timeout guarantee with health check probes",
-                "Premium SSD P10 OS Disk included"
-            ],
-            "validation_status": "validated",
-            "pricing_source": "Azure Retail Prices API"
-        })
+        if sig.get("no_separate_ec2") or sig.get("has_eks"):
+            llm_cost = 70.08 if scenario_type == "cost_optimized" else 140.16
+            resources.append({
+                "id": "azure-aks-node-llm",
+                "resource_name": "AKS Node Pool (In-House LLM Gateway)",
+                "provider": "azure",
+                "service_family": "compute",
+                "service_name": "Azure Kubernetes Service",
+                "region": azure_region,
+                "sku": "Standard_D4s_v5",
+                "quantity": 1 if scenario_type == "cost_optimized" else 2,
+                "availability_config": "Zone-Redundant Node Pool in AKS",
+                "pricing_model": "Pay-as-you-go",
+                "monthly_cost_usd": llm_cost,
+                "annual_cost_usd": round(llm_cost * 12, 2),
+                "rationale": "Dedicated AKS worker node pool hosting containerized LLM gateway pods without separate standalone VMs.",
+                "assumptions": [
+                    "Standard_D4s_v5 nodes attached to AKS cluster",
+                    "Sub-30s response timeout guarantee with health check probes"
+                ],
+                "validation_status": "validated",
+                "pricing_source": "Azure Retail Prices API"
+            })
+        else:
+            llm_cost = 70.08 if scenario_type == "cost_optimized" else 140.16
+            resources.append({
+                "id": "azure-llm-gateway",
+                "resource_name": "In-House LLM Gateway (VMSS)",
+                "provider": "azure",
+                "service_family": "compute",
+                "service_name": "Virtual Machines",
+                "region": azure_region,
+                "sku": "Standard_D4s_v5",
+                "quantity": 2,
+                "availability_config": "Zone-Redundant (2 Availability Zones)",
+                "pricing_model": "Pay-as-you-go",
+                "monthly_cost_usd": llm_cost,
+                "annual_cost_usd": round(llm_cost * 12, 2),
+                "rationale": "Dedicated compute cluster for in-house LLM gateway routing, model load balancing, and token rate limiting.",
+                "assumptions": [
+                    "2x Standard_D4s_v5 Linux instances",
+                    "Sub-30s response timeout guarantee with health check probes",
+                    "Premium SSD P10 OS Disk included"
+                ],
+                "validation_status": "validated",
+                "pricing_source": "Azure Retail Prices API"
+            })
 
     # Azure Data Factory (Managed Apache Airflow)
     if sig.get("has_airflow"):

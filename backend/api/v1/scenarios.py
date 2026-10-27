@@ -4,7 +4,7 @@ Scenario generation, resource configuration, and comparison endpoints.
 import uuid
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, desc, delete, func
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
