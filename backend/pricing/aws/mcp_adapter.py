@@ -332,10 +332,13 @@ class AWSMCPClient:
                         # If quantity > 1, explode into separate individual node entries
                         for n_idx in range(1, qty + 1):
                             desc = desc_base
-                            if qty > 1 and "node" not in desc_base.lower() and "worker" not in desc_base.lower():
-                                desc = f"{desc_base} - Node {n_idx}"
-                            elif qty > 1 and f"({qty} nodes)" in desc_base.lower():
-                                desc = f"EKS Linux Worker Node {n_idx}"
+                            if qty > 1:
+                                if f"({qty} nodes)" in desc_base.lower():
+                                    desc = f"EKS Linux Worker Node {n_idx}"
+                                elif not re.search(r'\b\d+\b', desc_base):
+                                    desc = f"{desc_base} {n_idx}"
+                                else:
+                                    desc = f"{desc_base} - Node {n_idx}"
                             mcp_services.append({
                                 "service": "ec2Enhancement",
                                 "config": {
