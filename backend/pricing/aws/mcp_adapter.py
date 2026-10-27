@@ -216,6 +216,47 @@ class AWSMCPClient:
                                 "storageAmount": {"value": str(storage_gb), "unit": "gb|NA"}
                             }
                         })
+                    elif "nat gateway" in r_name or "natgateway" in svc_name or "nat" in r_name:
+                        mcp_services.append({
+                            "service": "networkAddressTranslationNatGatewayVpc",
+                            "estimateFor": "networkAddressTranslationGateway",
+                            "config": {
+                                "region": reg,
+                                "description": r.get("resource_name", "Network Address Translation (NAT) Gateway"),
+                                "regionalNatGatewayCount": "1",
+                                "regionalNatGatewayAzCount": "1",
+                                "regionalNatGatewayDataProcessed": {"value": "100", "unit": "gb|month"},
+                                "numberOfGateways": "0",
+                                "dataProcessedPerNATGateway": {"value": "0", "unit": "gb|month"}
+                            }
+                        })
+                    elif "transit gateway" in r_name or "transitgateway" in svc_name:
+                        mcp_services.append({
+                            "service": "transitGatewayVpc",
+                            "estimateFor": "transitGateway",
+                            "config": {
+                                "region": reg,
+                                "description": r.get("resource_name", "AWS Transit Gateway"),
+                                "numberOfTransitGatewayAttachments": "2",
+                                "dataProcessedPerTransitGatewayAttachment": {"value": "50", "unit": "gb|month"}
+                            }
+                        })
+                    elif "elastic block store" in r_name or "ebs" in svc_name or "ebs" in r_name:
+                        storage_gb = r.get("config", {}).get("storage_gb", 100)
+                        mcp_services.append({
+                            "service": "amazonElasticBlockStore",
+                            "estimateFor": "elasticBlockStore",
+                            "config": {
+                                "region": reg,
+                                "description": r.get("resource_name", "Amazon Elastic Block Store (EBS)"),
+                                "numberOfInstances": "1",
+                                "durationOfInstanceRuns": {"value": "730", "unit": "hrs|month"},
+                                "storageType": "Storage General Purpose gp3 GB Mo",
+                                "storageAmount": {"value": str(storage_gb), "unit": "gb|NA"},
+                                "gp3Iops": "3000",
+                                "gp3Throughput": "125"
+                            }
+                        })
                     elif "opensearch" in svc_name or "elasticsearch" in svc_name or "search" in r_name or "analytics" in fam:
                         sku = r.get("sku", "m6g.large.search")
                         if not sku.endswith(".search"):
