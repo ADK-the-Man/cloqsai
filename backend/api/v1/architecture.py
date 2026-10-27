@@ -106,8 +106,8 @@ async def generate_architectures(
     if not req.get("raw_text") and project.description:
         req["raw_text"] = project.description
 
-    # Also include any conversation message additions
-    if conv and conv.messages:
+    # Only include conversation message additions if no explicit raw prompt
+    if (not req_rec or not req_rec.raw_text) and conv and conv.messages:
         chat_parts = []
         for m in conv.messages:
             if isinstance(m, dict) and m.get("content"):

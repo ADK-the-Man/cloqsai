@@ -27,6 +27,7 @@ async def extract_project_requirements(
 ):
     try:
         spec = await extract_requirements(project.id, req.raw_text, db)
+        project.description = req.raw_text
         await db.commit()
     except Exception as exc:
         logger.warning("LLM extraction failed or invalid key: %s. Engaging deterministic workload extractor fallback.", exc)
@@ -55,15 +56,20 @@ async def extract_project_requirements(
             raw_notes=req.raw_text
         )
 
+        existing_res = await db.execute(select(Requirements).where(Requirements.project_id == project.id))
+        existing_recs = existing_res.scalars().all()
+        next_ver = max((r.version for r in existing_recs), default=0) + 1
+
         record = Requirements(
             id=uuid.uuid4(),
             project_id=project.id,
-            version=1,
+            version=next_ver,
             raw_text=req.raw_text,
             structured_spec=spec.model_dump(),
         )
         db.add(record)
         project.status = "requirements_extracted"
+        project.description = req.raw_text
         await db.commit()
 
     # Sync with conversation collected requirements

@@ -200,6 +200,7 @@ class AWSMCPClient:
                         storage_gb = r.get("config", {}).get("storage_gb", 500 if ("master" in r_name or "replica" in r_name or "slave" in r_name) else 100)
                         mcp_services.append({
                             "service": "amazonRDSPostgreSQLDB",
+                            "estimateFor": "rdsForPostgreSQL",
                             "config": {
                                 "region": reg,
                                 "description": r.get("resource_name", "Amazon RDS PostgreSQL Primary"),
@@ -213,7 +214,9 @@ class AWSMCPClient:
                                     }]
                                 },
                                 "storageVolume": "General Purpose-GP3",
-                                "storageAmount": {"value": str(storage_gb), "unit": "gb|NA"}
+                                "storageAmount": {"value": str(storage_gb), "unit": "gb|NA"},
+                                "gp3Iops": "12000",
+                                "gp3Throughput": "500"
                             }
                         })
                     elif "nat gateway" in r_name or "natgateway" in svc_name or "nat" in r_name:

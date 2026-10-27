@@ -216,7 +216,10 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         "dont want seperate ec2", "dont want separate ec2", "don't want seperate ec2",
         "don't want separate ec2", "no separate ec2", "no seperate ec2",
         "no standalone ec2", "without separate ec2", "without seperate ec2",
-        "dont want separate instances", "no separate instances"
+        "dont want separate instances", "no separate instances",
+        "dont want multiple ec2", "don't want multiple ec2", "no multiple ec2",
+        "dont want ec2", "don't want ec2", "no ec2", "without ec2",
+        "one eks", "eks with nodes", "eks cluster with nodes", "single eks"
     ])
 
     signals = {
@@ -375,7 +378,7 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
 
     # In-House LLM Gateway Cluster
     if sig.get("has_llm_gateway"):
-        if sig.get("no_separate_ec2") or (sig.get("has_eks") and sig.get("no_separate_ec2")):
+        if sig.get("has_eks") or sig.get("no_separate_ec2"):
             llm_sku = "c7i.large" if scenario_type != "high_availability" else "c7i.xlarge"
             llm_qty = 1 if scenario_type == "cost_optimized" else 2
             llm_hourly = 0.089 if llm_sku == "c7i.large" else 0.178
@@ -462,7 +465,7 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
         is_high_throughput = sig.get("has_read_replica") or concurrent_users >= 500
         if is_high_throughput:
             db_sku = "db.m6i.xlarge" if scenario_type != "cost_optimized" else "db.m6i.large"
-            db_hourly = 0.192 if db_sku == "db.m6i.xlarge" else 0.096
+            db_hourly = 0.344 if db_sku == "db.m6i.xlarge" else 0.172
             db_storage_actual = max(db_storage_gb, 500)
         else:
             db_sku = "db.t4g.large" if concurrent_users >= 150 else "db.t4g.medium"
@@ -509,7 +512,7 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
         # Add Slave / Read Replica if requested
         if sig.get("has_read_replica"):
             replica_sku = "db.m6i.large" if scenario_type != "high_availability" else "db.m6i.xlarge"
-            replica_hourly = 0.096 if replica_sku == "db.m6i.large" else 0.192
+            replica_hourly = 0.172 if replica_sku == "db.m6i.large" else 0.344
             replica_compute = replica_hourly * 730
             replica_storage_cost = db_storage_actual * storage_rate
             replica_monthly = round(replica_compute + replica_storage_cost, 2)

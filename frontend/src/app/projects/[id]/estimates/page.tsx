@@ -188,8 +188,35 @@ export default function EstimatesPage() {
       <PromptEditorCard
         projectId={id}
         onRerun={async () => {
-          await fetchScenarios()
-          await fetchEstimates()
+          try {
+            const token = getToken()
+            // 1. Fetch updated scenarios
+            const res = await fetch(`/api/v1/projects/${id}/scenarios`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            if (res.ok) {
+              const scens = await res.json()
+              setScenarios(scens)
+              const recAws = scens.find((s: any) => s.provider === 'aws' && s.scenario_type === 'recommended')
+              const recAzure = scens.find((s: any) => s.provider === 'azure' && s.scenario_type === 'recommended')
+              const targetIds = [recAws?.id, recAzure?.id].filter(Boolean)
+
+              if (targetIds.length > 0) {
+                // 2. Trigger fresh live estimate calculation for the updated scenarios!
+                await fetch(`/api/v1/projects/${id}/estimates`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({ scenario_ids: targetIds }),
+                })
+              }
+            }
+            await fetchEstimates()
+          } catch (e) {
+            console.error('Error on estimates rerun:', e)
+          }
         }}
       />
 
