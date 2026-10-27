@@ -25,6 +25,13 @@ async def extract_project_requirements(
     project: Project = Depends(get_project_or_404),
     db: AsyncSession = Depends(get_db)
 ):
+    # Pre-warm pattern ranking with LLM ranking or deterministic fallback
+    from ai.stages.pattern_ranker import rank_architecture_patterns
+    try:
+        await rank_architecture_patterns(req.raw_text)
+    except Exception as e:
+        logger.debug("Pattern ranker pre-warm: %s", e)
+
     try:
         spec = await extract_requirements(project.id, req.raw_text, db)
         project.description = req.raw_text

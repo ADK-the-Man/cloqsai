@@ -76,6 +76,20 @@ def generate_scenarios_for_provider(provider: str, req: Dict[str, Any]) -> List[
             if not budget_analysis["is_within_budget"]:
                 limitations.insert(0, budget_analysis["justification"])
 
+        # Surface Top-Ranked Architectural Patterns & Rationale
+        top_comp = (sig.get("ranked_compute") or [{}])[0]
+        if top_comp.get("pattern"):
+            comp_display = "Amazon EKS Kubernetes" if "eks" in top_comp["pattern"] else "Autoscaling Compute Cluster"
+            assumptions.insert(0, f"Architecture Pattern: {comp_display} (Rank #1 Affinity: {int(top_comp.get('score', 1.0) * 100)}%) — {top_comp.get('rationale', '')}")
+
+        top_db = (sig.get("ranked_database") or [{}])[0]
+        if top_db.get("pattern") and top_db.get("pattern") == "relational_master_slave":
+            assumptions.insert(1, f"Database Topology: Master-Slave Replication (Rank #1 Affinity: {int(top_db.get('score', 1.0) * 100)}%) — {top_db.get('rationale', '')}")
+
+        for constraint_item in (sig.get("key_constraints") or []):
+            if constraint_item not in assumptions:
+                assumptions.append(constraint_item)
+
         scenarios.append({
             "provider": p,
             "scenario_type": st_key,

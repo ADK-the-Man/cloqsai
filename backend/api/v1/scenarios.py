@@ -105,6 +105,13 @@ async def generate_project_scenarios(
     if sel in ["azure", "both"]:
         providers_to_generate.append("azure")
 
+    # Pre-rank patterns with LLM
+    from ai.stages.pattern_ranker import rank_architecture_patterns
+    try:
+        await rank_architecture_patterns(req.get("raw_text", ""))
+    except Exception as e:
+        logger.debug("Scenario pattern ranking: %s", e)
+
     created = []
     for prov in providers_to_generate:
         scenarios_data = generate_scenarios_for_provider(prov, req)

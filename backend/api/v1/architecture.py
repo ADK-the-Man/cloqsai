@@ -125,6 +125,13 @@ async def generate_architectures(
     # Remove prior architecture records for project if re-generating
     await db.execute(delete(Architecture).where(Architecture.project_id == project.id))
 
+    # Pre-rank patterns with LLM
+    from ai.stages.pattern_ranker import rank_architecture_patterns
+    try:
+        await rank_architecture_patterns(req.get("raw_text", ""))
+    except Exception as e:
+        logger.debug("Architecture pattern ranking: %s", e)
+
     created = []
     for prov in providers_to_generate:
         services, diag_data = build_architecture_graph(prov, req)

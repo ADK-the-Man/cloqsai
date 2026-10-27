@@ -246,7 +246,63 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         "has_mid_server": "mid server" in raw_text or "mid-server" in raw_text or "midserver" in raw_text or ("vm" in raw_text and ("server" in raw_text or "setup" in raw_text or "mid" in raw_text)),
         "has_acr": "acr" in raw_text or "ecr" in raw_text or "container registry" in raw_text or "registry" in raw_text,
     }
+
+    # Integrate LLM Pattern Ranking & Scoring
+    try:
+        from ai.stages.pattern_ranker import get_cached_or_deterministic_ranking
+        ranking = get_cached_or_deterministic_ranking(raw_text, req)
+        extracted = ranking.get("extracted_signals", {})
+
+        # Apply ranked pattern signals
+        if extracted.get("no_separate_ec2"):
+            signals["no_separate_ec2"] = True
+            signals["has_eks"] = True
+        if extracted.get("has_eks"):
+            signals["has_eks"] = True
+        if extracted.get("has_read_replica"):
+            signals["has_read_replica"] = True
+            signals["has_rds"] = True
+        if extracted.get("has_airflow"):
+            signals["has_airflow"] = True
+        if extracted.get("has_llm_gateway"):
+            signals["has_llm_gateway"] = True
+        if extracted.get("has_secrets"):
+            signals["has_secrets"] = True
+            if extracted.get("secrets_count"):
+                signals["secrets_count"] = max(signals["secrets_count"], extracted["secrets_count"])
+        if extracted.get("has_s3"):
+            signals["has_s3"] = True
+        if extracted.get("has_large_video_uploads"):
+            signals["has_large_video_uploads"] = True
+
+        signals["ranked_compute"] = ranking.get("compute_ranking", [])
+        signals["ranked_database"] = ranking.get("database_ranking", [])
+        signals["gateway_placement"] = ranking.get("gateway_placement", {})
+        signals["key_constraints"] = ranking.get("key_constraints", [])
+        signals["ranking_source"] = ranking.get("ranking_source", "deterministic_heuristics")
+    except Exception as e:
+        logger.debug("Pattern ranker integration fallback: %s", e)
+
     return signals
+
+
+async def rank_and_parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Asynchronous version of parse_workload_signals that calls the LLM Pattern Ranker
+    prior to extracting deterministic signals.
+    """
+    raw_text = (req.get("raw_text") or req.get("raw_notes") or "").lower()
+    for v in req.values():
+        if isinstance(v, str):
+            raw_text += " " + v.lower()
+        elif isinstance(v, list):
+            raw_text += " " + " ".join(str(item).lower() for item in v)
+    try:
+        from ai.stages.pattern_ranker import rank_architecture_patterns
+        await rank_architecture_patterns(raw_text, req)
+    except Exception as e:
+        logger.debug("Asynchronous pattern ranking skipped: %s", e)
+    return parse_workload_signals(req)
 
 
 def _get_int_val(val: Any, default: int = 100) -> int:
