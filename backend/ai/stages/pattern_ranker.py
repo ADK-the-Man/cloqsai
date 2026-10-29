@@ -106,7 +106,7 @@ def is_negated(pattern: str, text: str, window: int = 50) -> bool:
         prefix = text[start:m.start()]
 
         neg_found = False
-        for neg in ["dont want", "don't want", "no ", "without ", "skip ", "never ", "not want"]:
+        for neg in ["dont want", "don't want", "no ", "without ", "skip ", "never ", "not want", "dont need", "don't need", "no need", "not need"]:
             neg_idx = prefix.rfind(neg)
             if neg_idx != -1:
                 sub = prefix[neg_idx + len(neg):]
@@ -134,8 +134,11 @@ def compute_deterministic_ranking(raw_text: str, req: Dict[str, Any]) -> Dict[st
         "no standalone ec2", "without separate ec2", "without seperate ec2",
         "dont want separate instances", "no separate instances",
         "dont want multiple ec2", "don't want multiple ec2", "no multiple ec2",
+        "dont need multiple ec2", "don't need multiple ec2", "no need multiple ec2",
+        "dont need ec2", "don't need ec2", "no need ec2", "no need for ec2",
         "dont want ec2", "don't want ec2", "no ec2", "without ec2",
-        "one eks", "eks with nodes", "eks cluster with nodes", "single eks"
+        "one eks", "eks with nodes", "eks cluster with nodes", "single eks",
+        "i need one eks", "need one eks", "one eks with nodes"
     ]
     no_separate_ec2 = any(k in text for k in ec2_negation_triggers) or is_negated(r"\b(?:ec2|vms|virtual machines|instances)\b", text)
 

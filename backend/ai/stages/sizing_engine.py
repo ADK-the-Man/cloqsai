@@ -218,8 +218,11 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         "no standalone ec2", "without separate ec2", "without seperate ec2",
         "dont want separate instances", "no separate instances",
         "dont want multiple ec2", "don't want multiple ec2", "no multiple ec2",
+        "dont need multiple ec2", "don't need multiple ec2", "no need multiple ec2",
+        "dont need ec2", "don't need ec2", "no need ec2", "no need for ec2",
         "dont want ec2", "don't want ec2", "no ec2", "without ec2",
-        "one eks", "eks with nodes", "eks cluster with nodes", "single eks"
+        "one eks", "eks with nodes", "eks cluster with nodes", "single eks",
+        "i need one eks", "need one eks", "one eks with nodes"
     ])
 
     signals = {
