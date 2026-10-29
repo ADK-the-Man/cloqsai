@@ -303,6 +303,7 @@ class AWSMCPClient:
                                 desc = f"Amazon S3 Bucket {b_idx}"
                             mcp_services.append({
                                 "service": "amazonS3Standard",
+                                "estimateFor": "s3Standard",
                                 "config": {
                                     "region": reg,
                                     "description": desc,
@@ -329,28 +330,18 @@ class AWSMCPClient:
                         qty = int(r.get("quantity") or 1)
                         inst_type = sku if ("." in sku and not sku.startswith("db.")) else "m6i.large"
                         desc_base = r.get("resource_name", "EKS Linux Worker Node")
-                        # If quantity > 1, explode into separate individual node entries
-                        for n_idx in range(1, qty + 1):
-                            desc = desc_base
-                            if qty > 1:
-                                if f"({qty} nodes)" in desc_base.lower():
-                                    desc = f"EKS Linux Worker Node {n_idx}"
-                                elif not re.search(r'\b\d+\b', desc_base):
-                                    desc = f"{desc_base} {n_idx}"
-                                else:
-                                    desc = f"{desc_base} - Node {n_idx}"
-                            mcp_services.append({
-                                "service": "ec2Enhancement",
-                                "config": {
-                                    "region": reg,
-                                    "description": desc,
-                                    "instanceType": inst_type,
-                                    "workload": 1,
-                                    "selectedOS": "linux",
-                                    "tenancy": "shared",
-                                    "pricingStrategy": "ondemand"
-                                }
-                            })
+                        mcp_services.append({
+                            "service": "ec2Enhancement",
+                            "config": {
+                                "region": reg,
+                                "description": desc_base,
+                                "instanceType": inst_type,
+                                "workload": max(1, qty),
+                                "selectedOS": "linux",
+                                "tenancy": "shared",
+                                "pricingStrategy": "ondemand"
+                            }
+                        })
 
                 if mcp_services:
                     res = await self.call_mcp_tool("build_estimate", {
