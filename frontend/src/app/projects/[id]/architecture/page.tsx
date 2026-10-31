@@ -169,7 +169,9 @@ export default function ArchitecturePage() {
         currentText = reqData.raw_text || ''
       }
 
-      const newPrompt = currentText ? `${currentText.trim()}\n\n${mutationText.trim()}` : mutationText.trim()
+      const newPrompt = !currentText || mutationText.startsWith(currentText.trim()) || mutationText.length >= currentText.length
+        ? mutationText.trim()
+        : `${currentText.trim()}\n\n${mutationText.trim()}`
 
       await fetch(`/api/v1/projects/${id}/requirements/extract`, {
         method: 'POST',

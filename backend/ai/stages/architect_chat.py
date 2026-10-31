@@ -234,7 +234,7 @@ async def chat_with_architect(
             max_tokens=3500
         )
 
-        reply = raw_result.get("reply")
+        reply = raw_result.get("reply") or raw_result.get("text")
         if not reply or not isinstance(reply, str) or len(reply.strip()) < 15 or reply.strip() == "I have reviewed your request.":
             logger.info("LLM reply empty or placeholder, using enriched deterministic fallback")
             return deterministic_chat_response(user_msg, raw_prompt, resources, monthly_cost)
@@ -246,7 +246,7 @@ async def chat_with_architect(
 
         return ArchitectChatResponse(
             reply=reply,
-            suggested_prompt_update=raw_result.get("suggested_prompt_update"),
+            suggested_prompt_update=raw_result.get("suggested_prompt_update") or (deterministic_chat_response(user_msg, raw_prompt, resources, monthly_cost).suggested_prompt_update if any(k in user_msg.lower() for k in ["apply", "implement", "switch to graviton", "add redis", "use ssm"]) else None),
             suggested_actions=filtered_actions,
             impacted_services=raw_result.get("impacted_services") or [],
             projected_cost_delta=raw_result.get("projected_cost_delta")
