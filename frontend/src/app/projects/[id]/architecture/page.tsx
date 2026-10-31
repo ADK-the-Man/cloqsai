@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowRight, Layers, Cloud, Server, Sparkles } from 'lucide-react'
+import { ArrowRight, Layers, Cloud, Server, Sparkles, Flame, DollarSign } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,7 @@ export default function ArchitecturePage() {
   const [architectures, setArchitectures] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<string>('aws')
+  const [currentView, setCurrentView] = useState<'topology' | 'audit'>('topology')
   const [saving, setSaving] = useState(false)
   const [editingSvcId, setEditingSvcId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<{ name: string; region: string; purpose: string; rationale: string }>({ name: '', region: '', purpose: '', rationale: '' })
@@ -204,15 +205,28 @@ export default function ArchitecturePage() {
           </p>
         </div>
 
-        <Button
-          asChild
-          className="gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs"
-        >
-          <Link href={`/projects/${id}/scenarios`}>
-            <span>Compare Cost Scenarios</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            asChild
+            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs cursor-pointer shadow-xs font-semibold"
+          >
+            <Link href={`/projects/${id}/estimates`}>
+              <DollarSign className="h-3.5 w-3.5" />
+              <span>View Pricing Breakdown</span>
+            </Link>
+          </Button>
+
+          <Button
+            asChild
+            variant="outline"
+            className="gap-1.5 text-xs text-blue-700 bg-blue-50/60 border-blue-200 hover:bg-blue-100 cursor-pointer"
+          >
+            <Link href={`/projects/${id}/scenarios`}>
+              <span>Compare Scenarios</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Initial User Prompt Viewer & In-Place Editor */}
@@ -221,28 +235,91 @@ export default function ArchitecturePage() {
         onRerun={handleRerunPipeline}
       />
 
-      {/* Well-Architected Auditor & AI Roaster */}
-      <ArchitectureAuditorCard
-        projectId={id}
-        onApplyMutation={handleApplyPromptMutation}
-      />
+      {/* View Segmented Selector: Topology Graph vs Well-Architected Audit */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg">
+          <button
+            type="button"
+            onClick={() => setCurrentView('topology')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              currentView === 'topology'
+                ? 'bg-white text-blue-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="h-4 w-4" />
+            <span>Multi-AZ Topology Graph & Sizing</span>
+          </button>
 
-      {architectures.length > 1 && (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="bg-slate-200/60 p-1">
-            {architectures.map((arch) => (
-              <TabsTrigger
-                key={arch.provider}
-                value={arch.provider}
-                className="gap-2 capitalize text-xs data-[state=active]:bg-white"
-              >
-                {arch.provider === 'aws' ? <Cloud className="h-4 w-4" /> : <Server className="h-4 w-4" />}
-                {arch.provider.toUpperCase()} Architecture
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      )}
+          <button
+            type="button"
+            onClick={() => setCurrentView('audit')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              currentView === 'audit'
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-purple-700'
+            }`}
+          >
+            <Flame className="h-4 w-4 text-amber-400" />
+            <span>Well-Architected Roaster & FinOps Audit</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-400/20 text-amber-400 font-bold hidden sm:inline">
+              Save $292/mo
+            </span>
+          </button>
+        </div>
+
+        {currentView === 'topology' ? (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-slate-500 hidden sm:inline">
+              Audit Score: <strong className="text-slate-900 font-bold">85/100</strong>
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentView('audit')}
+              className="h-7 text-xs text-purple-700 bg-purple-50 hover:bg-purple-100 border-purple-200 cursor-pointer font-semibold gap-1"
+            >
+              <Flame className="h-3 w-3 text-amber-500" />
+              <span>Open Audit & Roast</span>
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentView('topology')}
+            className="h-7 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 border-blue-200 cursor-pointer font-semibold gap-1"
+          >
+            <Layers className="h-3 w-3 text-blue-600" />
+            <span>Back to Topology Graph</span>
+          </Button>
+        )}
+      </div>
+
+      {/* Conditionally Render Audit or Topology View */}
+      {currentView === 'audit' ? (
+        <ArchitectureAuditorCard
+          projectId={id}
+          onApplyMutation={handleApplyPromptMutation}
+        />
+      ) : (
+        <>
+          {architectures.length > 1 && (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="bg-slate-200/60 p-1">
+                {architectures.map((arch) => (
+                  <TabsTrigger
+                    key={arch.provider}
+                    value={arch.provider}
+                    className="gap-2 capitalize text-xs data-[state=active]:bg-white"
+                  >
+                    {arch.provider === 'aws' ? <Cloud className="h-4 w-4" /> : <Server className="h-4 w-4" />}
+                    {arch.provider.toUpperCase()} Architecture
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          )}
 
       {currentArch ? (
         <div className="space-y-6">
@@ -390,6 +467,8 @@ export default function ArchitecturePage() {
         <div className="p-12 text-center text-xs text-slate-500">
           No architecture data generated.
         </div>
+      )}
+      </>
       )}
 
       {/* Interactive Pair-Architect Chat Drawer */}

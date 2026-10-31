@@ -80,6 +80,9 @@ class ProjectResponse(BaseModel):
     status: str
     provider_selection: str
     monthly_cost_estimate: Optional[float] = None
+    freshness: Optional[EstimateFreshnessReport] = None
+    has_scenarios: bool = False
+    latest_scenario_id: Optional[uuid.UUID] = None
     created_at: datetime
     updated_at: datetime
 

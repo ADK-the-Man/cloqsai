@@ -1,12 +1,13 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { MessageSquare, Send, Sparkles, X, Minimize2, Maximize2, Zap, RefreshCw, Flame, Check, ArrowRight } from 'lucide-react'
+import { MessageSquare, Send, Sparkles, X, Minimize2, Maximize2, Zap, RefreshCw, Flame, Check, ArrowRight, Bot, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { getToken } from '@/lib/auth'
+import { MarkdownChatRenderer } from './MarkdownChatRenderer'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -132,14 +133,18 @@ export function ArchitectChatDrawer({
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-linear-to-r from-purple-600 to-indigo-600 text-white font-semibold text-xs shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer border border-purple-400/40"
+          className="group flex items-center gap-2.5 pl-3 pr-4 py-2.5 rounded-full bg-gradient-to-r from-purple-700 via-indigo-700 to-slate-900 text-white font-semibold text-xs shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer border border-purple-400/50"
         >
-          <Sparkles className="h-4 w-4 text-amber-300 animate-pulse" />
-          <span>Chat with AI Architect</span>
-          <span className="flex h-2 w-2 relative">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-          </span>
+          <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center shrink-0 text-amber-300 group-hover:rotate-12 transition-transform">
+            <Bot className="h-4 w-4" />
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="text-xs font-bold leading-tight">AI Cloud Architect</span>
+            <span className="text-[10px] text-purple-200 flex items-center gap-1 leading-tight">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Online & Sizing
+            </span>
+          </div>
         </button>
       </div>
     )
@@ -147,22 +152,22 @@ export function ArchitectChatDrawer({
 
   return (
     <div
-      className={`fixed right-4 bottom-4 z-50 w-[92vw] sm:w-[450px] bg-white rounded-2xl shadow-2xl border border-purple-200 flex flex-col overflow-hidden transition-all duration-200 ${
-        isMinimized ? 'h-[56px]' : 'h-[620px] max-h-[88vh]'
+      className={`fixed right-4 bottom-4 z-50 w-[92vw] sm:w-[480px] bg-white rounded-2xl shadow-2xl border border-purple-200 flex flex-col overflow-hidden transition-all duration-200 ${
+        isMinimized ? 'h-[56px]' : 'h-[640px] max-h-[88vh]'
       }`}
     >
       {/* Header */}
       <div className="p-3 bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 text-white flex items-center justify-between shrink-0 select-none border-b border-purple-800/50">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-purple-600 text-white shadow-sm">
-            <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+            <Bot className="h-4 w-4 text-amber-300" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-white">Principal Cloud Architect</span>
+              <span className="text-xs font-bold text-white">Principal Cloud Solutions Architect</span>
               <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
             </div>
-            <p className="text-[10px] text-purple-300 font-medium">Pair-architecting & Live Optimization</p>
+            <p className="text-[10px] text-purple-300 font-medium">FinOps Trade-offs & Live Architecture Mutation</p>
           </div>
         </div>
 
@@ -189,94 +194,111 @@ export function ArchitectChatDrawer({
       {/* Main Chat Stream */}
       {!isMinimized && (
         <>
-          <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 bg-slate-50/50 text-xs">
+          <div className="flex-1 overflow-y-auto p-3.5 space-y-4 bg-slate-50/50 text-xs">
             {messages.map((m, idx) => {
               const isUser = m.role === 'user'
 
               return (
                 <div
                   key={idx}
-                  className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1.5`}
+                  className={`flex items-start gap-2.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
                 >
+                  {/* Message Avatar Icon */}
                   <div
-                    className={`p-3 rounded-xl max-w-[88%] text-xs leading-relaxed whitespace-pre-wrap select-text shadow-sm ${
+                    className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 shadow-xs ${
                       isUser
-                        ? 'bg-purple-600 text-white rounded-br-xs font-medium'
-                        : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-xs font-normal'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gradient-to-br from-indigo-900 to-purple-950 text-amber-300 border border-purple-400/40'
                     }`}
                   >
-                    {m.content}
+                    {isUser ? <User className="h-3.5 w-3.5" /> : <Bot className="h-4 w-4" />}
                   </div>
 
-                  {/* Proposed Architecture Mutation Card */}
-                  {m.suggested_prompt_update && (
-                    <div className="w-[92%] p-3 rounded-xl bg-purple-50/90 border border-purple-200 space-y-2 mt-1 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] uppercase font-bold text-purple-900 tracking-wider flex items-center gap-1">
-                          <Zap className="h-3 w-3 text-amber-500" />
-                          <span>Proposed Architecture Mutation</span>
-                        </span>
-                        {m.projected_cost_delta !== undefined && m.projected_cost_delta !== null && (
-                          <Badge
-                            className={`text-[9px] font-bold ${
-                              m.projected_cost_delta < 0
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-slate-700 text-white'
-                            }`}
-                          >
-                            {m.projected_cost_delta < 0 ? '-' : '+'}
-                            ${Math.abs(m.projected_cost_delta).toFixed(2)}/mo
-                          </Badge>
-                        )}
-                      </div>
-
-                      <p className="text-[10px] text-slate-600 bg-white/90 p-2 rounded border border-purple-100 font-mono line-clamp-3">
-                        {m.suggested_prompt_update}
-                      </p>
-
-                      <Button
-                        size="sm"
-                        onClick={() => handleApplyUpdate(m.suggested_prompt_update!)}
-                        disabled={applyingPrompt}
-                        className="w-full h-7 text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1.5 shadow-xs cursor-pointer"
-                      >
-                        {applyingPrompt ? (
-                          <>
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                            <span>Updating Architecture...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Zap className="h-3 w-3 text-amber-300" />
-                            <span>Apply Changes to Architecture</span>
-                          </>
-                        )}
-                      </Button>
+                  <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[85%] space-y-1.5`}>
+                    <div
+                      className={`p-3.5 rounded-2xl text-xs leading-relaxed shadow-sm ${
+                        isUser
+                          ? 'bg-purple-600 text-white rounded-tr-xs font-medium whitespace-pre-wrap'
+                          : 'bg-white text-slate-800 border border-slate-200/90 rounded-tl-xs'
+                      }`}
+                    >
+                      {isUser ? (
+                        m.content
+                      ) : (
+                        <MarkdownChatRenderer content={m.content} />
+                      )}
                     </div>
-                  )}
 
-                  {/* Quick Action Suggestion Chips */}
-                  {m.suggested_actions && m.suggested_actions.length > 0 && !isUser && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {m.suggested_actions.map((act, aIdx) => (
-                        <button
-                          key={aIdx}
-                          type="button"
-                          onClick={() => {
-                            if (act.toLowerCase().includes('apply') && m.suggested_prompt_update) {
-                              handleApplyUpdate(m.suggested_prompt_update)
-                            } else {
-                              handleSendMessage(act)
-                            }
-                          }}
-                          disabled={loading}
-                          className="px-2.5 py-1 rounded-full bg-white hover:bg-purple-50 border border-purple-200 hover:border-purple-300 text-purple-700 text-[10px] font-semibold transition-all cursor-pointer shadow-xs"
+                    {/* Proposed Architecture Mutation Card */}
+                    {m.suggested_prompt_update && (
+                      <div className="w-full p-3 rounded-xl bg-purple-50/90 border border-purple-200 space-y-2 mt-1 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase font-bold text-purple-900 tracking-wider flex items-center gap-1">
+                            <Zap className="h-3 w-3 text-amber-500" />
+                            <span>Proposed Architecture Mutation</span>
+                          </span>
+                          {m.projected_cost_delta !== undefined && m.projected_cost_delta !== null && (
+                            <Badge
+                              className={`text-[9px] font-bold ${
+                                m.projected_cost_delta < 0
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-slate-700 text-white'
+                              }`}
+                            >
+                              {m.projected_cost_delta < 0 ? '-' : '+'}
+                              ${Math.abs(m.projected_cost_delta).toFixed(2)}/mo
+                            </Badge>
+                          )}
+                        </div>
+
+                        <p className="text-[10px] text-slate-600 bg-white/90 p-2 rounded border border-purple-100 font-mono line-clamp-3">
+                          {m.suggested_prompt_update}
+                        </p>
+
+                        <Button
+                          size="sm"
+                          onClick={() => handleApplyUpdate(m.suggested_prompt_update!)}
+                          disabled={applyingPrompt}
+                          className="w-full h-7 text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1.5 shadow-xs cursor-pointer"
                         >
-                          {act}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                          {applyingPrompt ? (
+                            <>
+                              <RefreshCw className="h-3 w-3 animate-spin" />
+                              <span>Updating Architecture...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="h-3 w-3 text-amber-300" />
+                              <span>Apply Changes to Architecture</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Quick Action Suggestion Chips */}
+                    {m.suggested_actions && m.suggested_actions.length > 0 && !isUser && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {m.suggested_actions.map((act, aIdx) => (
+                          <button
+                            key={aIdx}
+                            type="button"
+                            onClick={() => {
+                              if (act.toLowerCase().includes('apply') && m.suggested_prompt_update) {
+                                handleApplyUpdate(m.suggested_prompt_update)
+                              } else {
+                                handleSendMessage(act)
+                              }
+                            }}
+                            disabled={loading}
+                            className="px-2.5 py-1 rounded-full bg-white hover:bg-purple-50 border border-purple-200 hover:border-purple-300 text-purple-700 text-[10px] font-semibold transition-all cursor-pointer shadow-xs"
+                          >
+                            {act}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             })}

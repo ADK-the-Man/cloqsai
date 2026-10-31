@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.security import get_current_user
 from api.deps import get_project_or_404
-from models.db import User, Project, Conversation
+from models.db import User, Project, Conversation, Scenario
 from models.schemas import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectListResponse
+from pricing.freshness_engine import compute_freshness_report
 
 router = APIRouter()
 
@@ -35,9 +36,36 @@ async def list_projects(
     res = await db.execute(query)
     projects = res.scalars().all()
 
+    project_ids = [p.id for p in projects]
+    scenario_map = {}
+    if project_ids:
+        scen_res = await db.execute(
+            select(Scenario).where(Scenario.project_id.in_(project_ids))
+        )
+        all_scens = scen_res.scalars().all()
+        for s in all_scens:
+            if s.project_id not in scenario_map or s.scenario_type == "recommended":
+                scenario_map[s.project_id] = s
+
+    result_projects = []
+    for p in projects:
+        p_resp = ProjectResponse.model_validate(p)
+        scen = scenario_map.get(p.id)
+        if scen:
+            p_resp.has_scenarios = True
+            p_resp.latest_scenario_id = scen.id
+            p_resp.freshness = compute_freshness_report(scen)
+            if not p_resp.monthly_cost_estimate and scen.monthly_cost_usd:
+                p_resp.monthly_cost_estimate = scen.monthly_cost_usd
+        else:
+            p_resp.has_scenarios = False
+            p_resp.latest_scenario_id = None
+            p_resp.freshness = None
+        result_projects.append(p_resp)
+
     return ProjectListResponse(
-        projects=[ProjectResponse.model_validate(p) for p in projects],
-        total=len(projects)
+        projects=result_projects,
+        total=len(result_projects)
     )
 
 
