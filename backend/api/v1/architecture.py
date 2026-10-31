@@ -173,16 +173,39 @@ async def get_architecture_audit(
     Audits the current architecture against the 5 AWS Well-Architected Framework pillars,
     producing an overall score, roast verdict, and actionable cost/resilience findings.
     """
-    # Fetch recommended scenario resources for accurate cost & component audit
+    # 1. Fetch recommended scenario resources for accurate cost & component audit if available
     scen_res = await db.execute(
         select(Scenario)
         .where(Scenario.project_id == project.id, Scenario.scenario_type == "recommended")
     )
     scenario = scen_res.scalars().first()
 
-    resources = scenario.resources if scenario else []
-    monthly_cost = scenario.monthly_cost_usd if scenario else (project.monthly_cost_estimate or 0.0)
-    provider = scenario.provider if scenario else (project.provider_selection or "aws")
+    resources = []
+    monthly_cost = 0.0
+    provider = project.provider_selection or "aws"
+
+    if scenario and scenario.resources:
+        resources = scenario.resources
+        monthly_cost = scenario.monthly_cost_usd or 0.0
+        provider = scenario.provider or provider
+    else:
+        # Fall back to latest architecture services so audit works immediately on Step 2
+        arch_res = await db.execute(
+            select(Architecture)
+            .where(Architecture.project_id == project.id)
+            .order_by(desc(Architecture.version))
+        )
+        arch = arch_res.scalars().first()
+        if arch and arch.services:
+            provider = arch.provider or provider
+            for s in arch.services:
+                resources.append({
+                    "resource_name": s.get("name") or s.get("service_name"),
+                    "service_name": s.get("service_name"),
+                    "purpose": s.get("purpose"),
+                    "sku": s.get("service_name"),
+                    "monthly_cost_usd": 0.0,
+                })
 
     prompt = project.description or ""
     return await run_architecture_audit(prompt, resources, monthly_cost, provider)

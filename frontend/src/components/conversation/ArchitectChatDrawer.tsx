@@ -79,7 +79,7 @@ export function ArchitectChatDrawer({
         },
         body: JSON.stringify({
           message: text,
-          history: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          history: messages.map((m) => ({ role: m.role, content: m.content })),
         }),
       })
 
@@ -152,17 +152,17 @@ export function ArchitectChatDrawer({
       }`}
     >
       {/* Header */}
-      <div className="p-3 bg-linear-to-r from-purple-900 via-indigo-900 to-slate-900 text-white flex items-center justify-between shrink-0 select-none">
+      <div className="p-3 bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 text-white flex items-center justify-between shrink-0 select-none border-b border-purple-800/50">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-purple-600 text-white shadow-2xs">
+          <div className="p-1.5 rounded-lg bg-purple-600 text-white shadow-sm">
             <Sparkles className="h-3.5 w-3.5 text-amber-300" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold">Principal Cloud Architect</span>
+              <span className="text-xs font-bold text-white">Principal Cloud Architect</span>
               <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
             </div>
-            <p className="text-[10px] text-purple-200/80">Pair-architecting & Live Optimization</p>
+            <p className="text-[10px] text-purple-300 font-medium">Pair-architecting & Live Optimization</p>
           </div>
         </div>
 
@@ -199,7 +199,7 @@ export function ArchitectChatDrawer({
                   className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1.5`}
                 >
                   <div
-                    className={`p-3 rounded-xl max-w-[88%] text-xs leading-relaxed whitespace-pre-wrap select-text shadow-2xs ${
+                    className={`p-3 rounded-xl max-w-[88%] text-xs leading-relaxed whitespace-pre-wrap select-text shadow-sm ${
                       isUser
                         ? 'bg-purple-600 text-white rounded-br-xs font-medium'
                         : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-xs font-normal'
@@ -210,7 +210,7 @@ export function ArchitectChatDrawer({
 
                   {/* Proposed Architecture Mutation Card */}
                   {m.suggested_prompt_update && (
-                    <div className="w-[92%] p-3 rounded-xl bg-purple-50/80 border border-purple-200 space-y-2 mt-1 shadow-2xs">
+                    <div className="w-[92%] p-3 rounded-xl bg-purple-50/90 border border-purple-200 space-y-2 mt-1 shadow-sm">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] uppercase font-bold text-purple-900 tracking-wider flex items-center gap-1">
                           <Zap className="h-3 w-3 text-amber-500" />
@@ -230,7 +230,7 @@ export function ArchitectChatDrawer({
                         )}
                       </div>
 
-                      <p className="text-[10px] text-slate-600 bg-white/80 p-2 rounded border border-purple-100 font-mono line-clamp-3">
+                      <p className="text-[10px] text-slate-600 bg-white/90 p-2 rounded border border-purple-100 font-mono line-clamp-3">
                         {m.suggested_prompt_update}
                       </p>
 
@@ -262,9 +262,15 @@ export function ArchitectChatDrawer({
                         <button
                           key={aIdx}
                           type="button"
-                          onClick={() => handleSendMessage(act)}
+                          onClick={() => {
+                            if (act.toLowerCase().includes('apply') && m.suggested_prompt_update) {
+                              handleApplyUpdate(m.suggested_prompt_update)
+                            } else {
+                              handleSendMessage(act)
+                            }
+                          }}
                           disabled={loading}
-                          className="px-2 py-0.5 rounded-full bg-white hover:bg-purple-50 border border-purple-200 text-purple-700 text-[10px] font-medium transition-colors cursor-pointer shadow-3xs"
+                          className="px-2.5 py-1 rounded-full bg-white hover:bg-purple-50 border border-purple-200 hover:border-purple-300 text-purple-700 text-[10px] font-semibold transition-all cursor-pointer shadow-xs"
                         >
                           {act}
                         </button>

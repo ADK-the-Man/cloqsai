@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from api.deps import get_project_or_404
-from models.db import Project, Conversation, Scenario
+from models.db import Project, Conversation, Scenario, Architecture
 from models.schemas import (
     ConversationResponse,
     AnswerRequest,
@@ -171,14 +171,35 @@ async def chat_with_principal_architect(
     Understands current architecture, diagram, resources, and pricing.
     Can answer technical trade-off questions and propose 1-click architecture prompt mutations.
     """
-    # 1. Fetch recommended scenario resources for context
+    # 1. Fetch recommended scenario resources for context, or fall back to Architecture services
     scen_res = await db.execute(
         select(Scenario)
         .where(Scenario.project_id == project.id, Scenario.scenario_type == "recommended")
     )
     scenario = scen_res.scalars().first()
-    resources = scenario.resources if scenario else []
-    monthly_cost = scenario.monthly_cost_usd if scenario else (project.monthly_cost_estimate or 0.0)
+    resources = []
+    monthly_cost = 0.0
+
+    if scenario and scenario.resources:
+        resources = scenario.resources
+        monthly_cost = scenario.monthly_cost_usd or (project.monthly_cost_estimate or 0.0)
+    else:
+        # Fall back to active architecture services
+        arch_res = await db.execute(
+            select(Architecture)
+            .where(Architecture.project_id == project.id)
+            .order_by(Architecture.version.desc())
+        )
+        arch = arch_res.scalars().first()
+        if arch and arch.services:
+            for s in arch.services:
+                resources.append({
+                    "resource_name": s.get("name") or s.get("service_name"),
+                    "service_name": s.get("service_name"),
+                    "purpose": s.get("purpose"),
+                    "sku": s.get("service_name"),
+                    "monthly_cost_usd": 0.0,
+                })
 
     # 2. Fetch conversation record to record chat messages
     conv_res = await db.execute(select(Conversation).where(Conversation.project_id == project.id))

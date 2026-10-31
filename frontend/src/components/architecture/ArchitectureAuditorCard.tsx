@@ -118,11 +118,11 @@ export function ArchitectureAuditorCard({
   })
 
   return (
-    <Card className={`border-purple-200/80 bg-linear-to-br from-purple-50/30 via-white to-slate-50/50 shadow-xs overflow-hidden ${className}`}>
+    <Card className={`border-purple-200/90 bg-gradient-to-br from-purple-50/50 via-white to-slate-50/80 shadow-sm overflow-hidden ${className}`}>
       {/* Header Banner */}
-      <CardHeader className="p-4 bg-white/80 border-b border-purple-100/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <CardHeader className="p-4 bg-white/90 border-b border-purple-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-purple-600 text-white shadow-2xs">
+          <div className="p-1.5 rounded-lg bg-purple-600 text-white shadow-sm">
             <Flame className="h-4 w-4" />
           </div>
           <div>
@@ -172,35 +172,35 @@ export function ArchitectureAuditorCard({
           {/* Top Scores & Metrics Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
             {/* Overall Gauge */}
-            <div className={`p-3 rounded-xl border flex flex-col items-center justify-center text-center col-span-2 sm:col-span-1 shadow-2xs ${getScoreColor(report.overall_score)}`}>
+            <div className={`p-3 rounded-xl border flex flex-col items-center justify-center text-center col-span-2 sm:col-span-1 shadow-sm ${getScoreColor(report.overall_score)}`}>
               <span className="text-[10px] uppercase font-bold tracking-wider">Overall Score</span>
               <div className="text-2xl font-black mt-0.5">{report.overall_score}</div>
               <span className="text-[10px] opacity-80 font-medium">out of 100</span>
             </div>
 
             {/* Pillar 1: Cost Optimization */}
-            <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 shadow-2xs">
+            <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 shadow-sm">
               <span className="text-[10px] font-bold text-slate-500 uppercase">Cost Optimization</span>
               <div className="text-base font-extrabold text-slate-900 mt-0.5">{report.cost_score}%</div>
               <p className="text-[10px] text-slate-400 mt-0.5">FinOps waste & SKUs</p>
             </div>
 
             {/* Pillar 2: Reliability */}
-            <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 shadow-2xs">
+            <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 shadow-sm">
               <span className="text-[10px] font-bold text-slate-500 uppercase">Reliability</span>
               <div className="text-base font-extrabold text-slate-900 mt-0.5">{report.reliability_score}%</div>
               <p className="text-[10px] text-slate-400 mt-0.5">Multi-AZ & failover</p>
             </div>
 
             {/* Pillar 3: Security */}
-            <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 shadow-2xs">
+            <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 shadow-sm">
               <span className="text-[10px] font-bold text-slate-500 uppercase">Security</span>
               <div className="text-base font-extrabold text-slate-900 mt-0.5">{report.security_score}%</div>
               <p className="text-[10px] text-slate-400 mt-0.5">TLS & secret storage</p>
             </div>
 
             {/* Pillar 4: Operations */}
-            <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 shadow-2xs">
+            <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 shadow-sm">
               <span className="text-[10px] font-bold text-slate-500 uppercase">Operations</span>
               <div className="text-base font-extrabold text-slate-900 mt-0.5">{report.operations_score}%</div>
               <p className="text-[10px] text-slate-400 mt-0.5">Container insights</p>
@@ -208,7 +208,7 @@ export function ArchitectureAuditorCard({
           </div>
 
           {/* Candid Roast Verdict Banner */}
-          <div className="p-3.5 rounded-xl bg-linear-to-r from-purple-900 via-indigo-900 to-slate-900 text-white shadow-xs">
+          <div className="p-3.5 rounded-xl bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 text-white shadow-sm">
             <div className="flex items-center gap-2 mb-1">
               <Flame className="h-4 w-4 text-amber-400 animate-pulse shrink-0" />
               <span className="text-[11px] uppercase font-bold text-amber-300 tracking-wider">

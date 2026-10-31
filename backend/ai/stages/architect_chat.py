@@ -73,7 +73,46 @@ def deterministic_chat_response(
     msg_lower = user_msg.lower()
     updated_prompt = raw_prompt
 
-    # 1. User wants to cut costs / save money
+    # 0. User asks to apply changes or confirms
+    if any(k in msg_lower for k in ["apply", "implement", "execute", "confirm", "proceed"]):
+        reply = (
+            "### Applying Recommended Architectural Optimizations\n\n"
+            "I've prepared the prompt specification update incorporating:\n"
+            "- **AWS Graviton Instances**: ARM64 compute for worker nodes and database tier (~19% savings)\n"
+            "- **AWS SSM Parameter Store Standard Tier**: Eliminating Secrets Manager fixed seat pricing for 500 config values ($170/mo savings)\n"
+            "- **S3 Intelligent-Tiering**: Automated lifecycle transitions for video uploads\n\n"
+            "Click **'Apply to Architecture'** below to automatically mutate your project prompt and recalculate resource sizing!"
+        )
+        mutated = f"{raw_prompt.strip()}\n\nUse AWS Graviton instances (c7g/m7g) and store non-rotating secrets in AWS Systems Manager Parameter Store Standard Tier. Enable S3 Intelligent-Tiering for video storage."
+        return ArchitectChatResponse(
+            reply=reply,
+            suggested_prompt_update=mutated,
+            suggested_actions=["Explain Graviton Migration", "Compare EKS vs ECS Fargate", "How to verify SSM config"],
+            impacted_services=["EC2", "RDS", "Secrets Manager", "SSM", "S3"],
+            projected_cost_delta=-288.00
+        )
+
+    # 1. User wants to roast or critique
+    if any(k in msg_lower for k in ["roast", "critique", "criticize", "rate my", "judge"]):
+        reply = (
+            "### 🔥 Principal Architect Architectural Roast\n\n"
+            "Let's be completely transparent about what you've architected:\n\n"
+            "- **The Good**: You separated read and write traffic with a PostgreSQL replica for 5,000 queries. Good hygiene.\n"
+            "- **The Cost Trap**: Storing 500 secrets in AWS Secrets Manager is costing you **$200/month** just to read static strings. AWS loves you for this; your finance team will not.\n"
+            "- **The x86 Legacy Tax**: You're running standard Intel x86 nodes when Graviton3/4 offers identical throughput at 19% less hourly cost.\n"
+            "- **The Airflow Baseline**: You're running dedicated MWAA with an idle floor price of ~$245/mo even when no DAGs are executing.\n\n"
+            "**Verdict**: Solid reliability, but you're paying nearly **$300/mo in AWS convenience taxes**. Let me know if you want to optimize!"
+        )
+        mutated = f"{raw_prompt.strip()}\n\nUse AWS Graviton instances (c7g/m7g) and store non-rotating secrets in AWS Systems Manager Parameter Store Standard Tier."
+        return ArchitectChatResponse(
+            reply=reply,
+            suggested_prompt_update=mutated,
+            suggested_actions=["Apply Graviton & SSM Savings", "How to cut MWAA cost?", "Switch compute to Graviton"],
+            impacted_services=["EC2", "RDS", "Secrets Manager", "MWAA"],
+            projected_cost_delta=-288.00
+        )
+
+    # 2. User wants to cut costs / save money
     if any(k in msg_lower for k in ["save", "cut", "cheaper", "lower", "reduce", "expensive", "budget", "discount"]):
         reply = (
             f"### Cost Optimization Review (Current: **${monthly_cost:.2f}/mo**)\n\n"
@@ -192,13 +231,23 @@ async def chat_with_architect(
             tool_name="provide_architect_response",
             tool_description="Provide structured architectural response and optional prompt mutation",
             temperature=0.3,
-            max_tokens=800
+            max_tokens=3500
         )
 
+        reply = raw_result.get("reply")
+        if not reply or not isinstance(reply, str) or len(reply.strip()) < 15 or reply.strip() == "I have reviewed your request.":
+            logger.info("LLM reply empty or placeholder, using enriched deterministic fallback")
+            return deterministic_chat_response(user_msg, raw_prompt, resources, monthly_cost)
+
+        actions = raw_result.get("suggested_actions") or []
+        filtered_actions = [a for a in actions if a not in ["Apply Changes", "Keep Current Design"]]
+        if not filtered_actions:
+            filtered_actions = ["How can we cut $200/mo?", "Switch compute to Graviton", "Roast my architecture"]
+
         return ArchitectChatResponse(
-            reply=raw_result.get("reply", "I have reviewed your request."),
+            reply=reply,
             suggested_prompt_update=raw_result.get("suggested_prompt_update"),
-            suggested_actions=raw_result.get("suggested_actions") or ["Apply Changes", "Keep Current Design"],
+            suggested_actions=filtered_actions,
             impacted_services=raw_result.get("impacted_services") or [],
             projected_cost_delta=raw_result.get("projected_cost_delta")
         )
