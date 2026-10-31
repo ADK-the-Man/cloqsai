@@ -147,67 +147,32 @@ function ServiceNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`min-w-[205px] max-w-[250px] rounded-xl border-2 p-3 shadow-xs transition-all duration-150 select-none cursor-grab active:cursor-grabbing ${getBorderColor()}`}
+      className={`group relative min-w-[205px] max-w-[250px] rounded-xl border-2 p-3 shadow-xs transition-all duration-150 select-none cursor-grab active:cursor-grabbing ${getBorderColor()}`}
     >
-      {/* 4-way connect handles with dual source and target */}
+      {/* Clean single handles - hidden until hover to eliminate cluttered dots */}
       <Handle
         type="target"
         position={Position.Top}
         id="top"
-        style={{ left: '42%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
+        className="!w-2 !h-2 !bg-blue-600 !border !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
       />
-      <Handle
-        type="source"
-        position={Position.Top}
-        id="top-source"
-        style={{ left: '58%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
-      />
-
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
-        style={{ left: '58%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
+        className="!w-2 !h-2 !bg-blue-600 !border !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
       />
-      <Handle
-        type="target"
-        position={Position.Bottom}
-        id="bottom-target"
-        style={{ left: '42%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
-      />
-
       <Handle
         type="target"
         position={Position.Left}
         id="left"
-        style={{ top: '42%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
+        className="!w-2 !h-2 !bg-blue-600 !border !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
       />
-      <Handle
-        type="source"
-        position={Position.Left}
-        id="left-source"
-        style={{ top: '58%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
-      />
-
       <Handle
         type="source"
         position={Position.Right}
         id="right"
-        style={{ top: '58%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
-      />
-      <Handle
-        type="target"
-        position={Position.Right}
-        id="right-target"
-        style={{ top: '42%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white hover:!scale-125 transition-transform"
+        className="!w-2 !h-2 !bg-blue-600 !border !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
       />
 
       {/* Node Header with Icon and Name */}
@@ -221,11 +186,8 @@ function ServiceNodeComponent({ data, selected }: NodeProps) {
           </div>
         </div>
 
-        {/* Live Traffic Pulse when selected or simulated */}
-        <span className="flex h-2 w-2 relative shrink-0">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-        </span>
+        {/* Active Node Indicator */}
+        <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
       </div>
 
       {/* Cloud Service SKU & Region */}
@@ -483,8 +445,9 @@ export function ArchitectureDiagram({
     )
     setNodes(updatedNodes)
     if (onChange) onChange({ nodes: updatedNodes, edges })
-    setSelectedNode((prev) => (prev ? { ...prev, data: { ...prev.data, ...editingNodeData } } : null))
-    toast.success('Node specifications updated')
+    setSelectedNode(null)
+    setEditingNodeData(null)
+    toast.success('Node specifications updated and saved')
   }
 
   // Toggle Fullscreen
@@ -515,7 +478,10 @@ export function ArchitectureDiagram({
         onNodeDragStop={handleNodeDragStop}
         onEdgesDelete={handleEdgesDelete}
         onNodeClick={onNodeClick}
-        onPaneClick={() => setSelectedNode(null)}
+        onPaneClick={() => {
+          setSelectedNode(null)
+          setEditingNodeData(null)
+        }}
         onInit={setRfInstance}
         connectionMode={ConnectionMode.Loose}
         fitView
@@ -642,7 +608,10 @@ export function ArchitectureDiagram({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setSelectedNode(null)}
+              onClick={() => {
+                setSelectedNode(null)
+                setEditingNodeData(null)
+              }}
               className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
             >
               <X className="h-4 w-4" />
@@ -714,6 +683,18 @@ export function ArchitectureDiagram({
               >
                 <Check className="h-3.5 w-3.5" />
                 <span>Save Changes</span>
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setSelectedNode(null)
+                  setEditingNodeData(null)
+                }}
+                className="h-8 px-2.5 text-xs text-slate-600 hover:text-slate-900 cursor-pointer"
+              >
+                Cancel
               </Button>
 
               <Button
