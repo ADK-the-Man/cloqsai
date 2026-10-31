@@ -148,188 +148,144 @@ export default function DashboardPage() {
       <Navbar />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6">
-        {/* Top Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        {/* Top Header - Note: Primary 'New Estimate' action is cleanly housed in the Navbar */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
               CLOQS AI Workspace
             </h1>
-            <p className="text-sm text-slate-500">
+            <p className="text-xs sm:text-sm text-slate-500">
               AI-Powered Cloud Architecture & Cost Intelligence &middot;{' '}
               <span className="font-medium text-blue-600">Architect Smarter. Optimize Everything.</span>
             </p>
           </div>
-
-          <Button asChild className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-xs cursor-pointer">
-            <Link href="/projects/new">
-              <PlusCircle className="h-4 w-4" />
-              <span>New Cloud Workload</span>
-            </Link>
-          </Button>
         </div>
 
-        {/* Estimate Freshness & Pricing KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <Card
-            className={`cursor-pointer transition-all border ${
-              filterTab === 'all' ? 'border-blue-400 bg-blue-50/30 ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'
-            }`}
-            onClick={() => setFilterTab('all')}
-          >
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                  Total Workloads
+        {/* Compact Workspace Intelligence & Filter Bar */}
+        <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-3 space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            {/* Quick Metrics & Filter Tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setFilterTab('all')}
+                className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  filterTab === 'all'
+                    ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span>All Workloads</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${filterTab === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                  {totalProjects}
                 </span>
-                <div className="text-2xl font-black text-slate-900 mt-0.5">{totalProjects}</div>
-                <p className="text-[10px] text-slate-400 mt-0.5">Sized cloud architectures</p>
-              </div>
-              <div className="p-2.5 rounded-xl bg-slate-100 text-slate-600">
-                <Layers className="h-5 w-5" />
-              </div>
-            </CardContent>
-          </Card>
+              </button>
 
-          <Card
-            className={`cursor-pointer transition-all border ${
-              filterTab === 'live' ? 'border-emerald-400 bg-emerald-50/30 ring-1 ring-emerald-300' : 'border-slate-200 bg-white hover:border-slate-300'
-            }`}
-            onClick={() => setFilterTab('live')}
-          >
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Live & Verified
+              <button
+                type="button"
+                onClick={() => setFilterTab('live')}
+                className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  filterTab === 'live'
+                    ? 'bg-emerald-700 text-white font-semibold shadow-xs'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100/70 border border-emerald-200/60'
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Live In-Sync</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${filterTab === 'live' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-900'}`}>
+                  {liveCount}
                 </span>
-                <div className="text-2xl font-black text-emerald-700 mt-0.5">{liveCount}</div>
-                <p className="text-[10px] text-emerald-600/80 mt-0.5">Synchronized with catalogs</p>
-              </div>
-              <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-700">
-                <CheckCircle2 className="h-5 w-5" />
-              </div>
-            </CardContent>
-          </Card>
+              </button>
 
-          <Card
-            className={`cursor-pointer transition-all border ${
-              filterTab === 'needs_refresh' ? 'border-amber-400 bg-amber-50/40 ring-1 ring-amber-300' : 'border-slate-200 bg-white hover:border-slate-300'
-            }`}
-            onClick={() => setFilterTab('needs_refresh')}
-          >
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1">
-                  <Zap className="h-3 w-3 text-amber-600" />
-                  Drift Detected
+              <button
+                type="button"
+                onClick={() => setFilterTab('needs_refresh')}
+                className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  filterTab === 'needs_refresh'
+                    ? 'bg-amber-600 text-white font-semibold shadow-xs'
+                    : driftCount > 0
+                    ? 'bg-amber-50 text-amber-800 hover:bg-amber-100/70 border border-amber-300'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                }`}
+              >
+                <Zap className="h-3.5 w-3.5 text-amber-500" />
+                <span>Drift Detected</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${filterTab === 'needs_refresh' ? 'bg-white/20 text-white' : 'bg-amber-200 text-amber-900'}`}>
+                  {driftCount}
                 </span>
-                <div className="text-2xl font-black text-amber-800 mt-0.5">{driftCount}</div>
-                <p className="text-[10px] text-amber-700/80 mt-0.5">AWS/Azure price variance</p>
-              </div>
-              <div className="p-2.5 rounded-xl bg-amber-100 text-amber-800">
-                <TrendingUp className="h-5 w-5" />
-              </div>
-            </CardContent>
-          </Card>
+              </button>
 
-          <Card
-            className={`cursor-pointer transition-all border ${
-              filterTab === 'needs_refresh' ? 'border-rose-400 bg-rose-50/40 ring-1 ring-rose-300' : 'border-slate-200 bg-white hover:border-slate-300'
-            }`}
-            onClick={() => setFilterTab('needs_refresh')}
-          >
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-semibold text-rose-700 uppercase tracking-wider flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3 text-rose-600" />
-                  Outdated (&gt;30d)
-                </span>
-                <div className="text-2xl font-black text-rose-700 mt-0.5">{staleCount}</div>
-                <p className="text-[10px] text-rose-600/80 mt-0.5">Requires 1-click sync</p>
-              </div>
-              <div className="p-2.5 rounded-xl bg-rose-100 text-rose-700">
-                <Clock className="h-5 w-5" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              {staleCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilterTab('needs_refresh')}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    filterTab === 'needs_refresh'
+                      ? 'bg-rose-700 text-white font-semibold shadow-xs'
+                      : 'bg-rose-50 text-rose-800 hover:bg-rose-100/70 border border-rose-300'
+                  }`}
+                >
+                  <Clock className="h-3.5 w-3.5 text-rose-500" />
+                  <span>Outdated</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${filterTab === 'needs_refresh' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-900'}`}>
+                    {staleCount}
+                  </span>
+                </button>
+              )}
 
-        {/* Live Provider Health Banner */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className="border-slate-200 shadow-xs bg-white">
-            <CardContent className="p-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
-                  <Cloud className="h-4 w-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800">AWS Pricing Calculator MCP Sidecar</h4>
-                  <p className="text-[11px] text-slate-500">
-                    {providerStatus?.aws_mcp_message || 'Checking live sidecar status...'}
-                  </p>
-                </div>
-              </div>
-              <Badge variant={providerStatus?.aws_mcp_available ? 'default' : 'secondary'} className="text-[10px]">
-                {providerStatus?.aws_mcp_available ? 'Active Live MCP' : 'Catalog Sizing'}
-              </Badge>
-            </CardContent>
-          </Card>
+              <div className="h-4 w-[1px] bg-slate-200 mx-1 shrink-0 hidden sm:block" />
 
-          <Card className="border-slate-200 shadow-xs bg-white">
-            <CardContent className="p-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
-                  <Server className="h-4 w-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800">Microsoft Azure Retail Prices API</h4>
-                  <p className="text-[11px] text-slate-500">
-                    {providerStatus?.azure_retail_prices_message || 'Checking live API...'}
-                  </p>
-                </div>
-              </div>
-              <Badge variant={providerStatus?.azure_retail_prices_available ? 'default' : 'secondary'} className="text-[10px]">
-                {providerStatus?.azure_retail_prices_available ? 'Online Live API' : 'Cached Rates'}
-              </Badge>
-            </CardContent>
-          </Card>
-        </div>
+              <button
+                type="button"
+                onClick={() => setFilterTab('aws')}
+                className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer shrink-0 ${
+                  filterTab === 'aws'
+                    ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                AWS
+              </button>
 
-        {/* Controls: Search & Smart Filter Tabs */}
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <button
+                type="button"
+                onClick={() => setFilterTab('azure')}
+                className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer shrink-0 ${
+                  filterTab === 'azure'
+                    ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Azure
+              </button>
+            </div>
+
+            {/* Provider Catalog Live Status Badges */}
+            <div className="flex items-center gap-2 text-[11px] text-slate-500 shrink-0">
+              <span className="hidden xl:inline text-slate-400">Pricing Engine:</span>
+              <div className="flex items-center gap-1 px-2 py-1 rounded bg-slate-50 border border-slate-200 text-slate-700">
+                <span className={`h-1.5 w-1.5 rounded-full ${providerStatus?.aws_mcp_available ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500'}`} />
+                <span className="font-semibold text-slate-800">AWS:</span>
+                <span>{providerStatus?.aws_mcp_available ? 'Live MCP Sidecar' : 'v2026.10 Verified'}</span>
+              </div>
+              <div className="flex items-center gap-1 px-2 py-1 rounded bg-slate-50 border border-slate-200 text-slate-700">
+                <span className={`h-1.5 w-1.5 rounded-full ${providerStatus?.azure_retail_prices_available ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500'}`} />
+                <span className="font-semibold text-slate-800">Azure:</span>
+                <span>{providerStatus?.azure_retail_prices_available ? 'Live Retail API' : 'Global Rates'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Search bar row */}
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search workloads & architectures..."
-              className="pl-9 text-xs bg-white"
+              placeholder="Search workloads & architectures by name or prompt keywords..."
+              className="pl-9 h-8 text-xs bg-slate-50/60 border-slate-200 focus:bg-white"
             />
-          </div>
-
-          <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto bg-slate-100 p-1 rounded-xl border border-slate-200">
-            {[
-              { key: 'all', label: `All (${totalProjects})` },
-              { key: 'needs_refresh', label: `Needs Refresh (${needsRefreshCount})`, highlight: needsRefreshCount > 0 },
-              { key: 'live', label: `Live In-Sync (${liveCount})` },
-              { key: 'aws', label: 'AWS' },
-              { key: 'azure', label: 'Azure' },
-            ].map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setFilterTab(t.key as any)}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer whitespace-nowrap ${
-                  filterTab === t.key
-                    ? 'bg-white text-slate-900 shadow-xs font-bold'
-                    : t.highlight
-                    ? 'text-amber-700 font-semibold hover:bg-amber-100/50'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
           </div>
         </div>
 

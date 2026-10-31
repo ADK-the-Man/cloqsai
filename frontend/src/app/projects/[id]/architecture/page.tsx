@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowRight, Layers, Cloud, Server, Sparkles, Flame, DollarSign } from 'lucide-react'
+import { ArrowRight, Layers, Cloud, Server, Sparkles, Flame, DollarSign, Bot } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,7 @@ export default function ArchitecturePage() {
   const [saving, setSaving] = useState(false)
   const [editingSvcId, setEditingSvcId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<{ name: string; region: string; purpose: string; rationale: string }>({ name: '', region: '', purpose: '', rationale: '' })
+  const [isChatOpen, setIsChatOpen] = useState(false)
 
   const currentArch = architectures.find((a) => a.provider === activeTab) || architectures[0]
 
@@ -206,6 +207,17 @@ export default function ArchitecturePage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsChatOpen(true)}
+            className="gap-1.5 text-xs text-purple-700 bg-purple-50/80 border-purple-200 hover:bg-purple-100 hover:text-purple-900 cursor-pointer shadow-2xs font-semibold"
+            title="Open Principal Solutions Architect"
+          >
+            <Bot className="h-3.5 w-3.5 text-purple-600" />
+            <span>AI Architect</span>
+          </Button>
+
           <Button
             asChild
             className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs cursor-pointer shadow-xs font-semibold"
@@ -474,6 +486,8 @@ export default function ArchitecturePage() {
       {/* Interactive Pair-Architect Chat Drawer */}
       <ArchitectChatDrawer
         projectId={id}
+        isOpen={isChatOpen}
+        onOpenChange={setIsChatOpen}
         onApplyPromptUpdate={handleApplyPromptMutation}
       />
     </div>

@@ -10,7 +10,8 @@ import {
   DownloadCloud,
   CheckCircle2,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  Bot
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -141,9 +142,32 @@ export function Sidebar({ projectId, projectName }: SidebarProps) {
           </nav>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500">
-          <span className="font-semibold text-slate-700 block mb-1">Pricing Integrity</span>
-          Generated CSV & Excel files strictly distinguish native calculator links from workload estimations.
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('open-architect-chat'))
+              }
+            }}
+            className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 text-white hover:from-purple-900 hover:to-indigo-900 transition-all text-xs font-semibold shadow-xs cursor-pointer group border border-purple-800/40"
+          >
+            <div className="h-7 w-7 rounded-lg bg-purple-600 flex items-center justify-center shrink-0 text-amber-300 group-hover:scale-105 transition-transform shadow-2xs">
+              <Bot className="h-4 w-4" />
+            </div>
+            <div className="text-left flex-1 min-w-0">
+              <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span>AI Architect</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
+              <div className="text-[10px] text-purple-200 truncate">FinOps & Live Mutation</div>
+            </div>
+          </button>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500">
+            <span className="font-semibold text-slate-700 block mb-1">Pricing Integrity</span>
+            Generated CSV & Excel files strictly distinguish native calculator links from workload estimations.
+          </div>
         </div>
       </aside>
     </>

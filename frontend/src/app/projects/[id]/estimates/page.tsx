@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { DownloadCloud, ArrowLeft, RefreshCw, CheckCircle2, ShieldCheck, ExternalLink, Edit2, Layers, Loader2, Plus, Zap, Sparkles } from 'lucide-react'
+import { DownloadCloud, ArrowLeft, RefreshCw, CheckCircle2, ShieldCheck, ExternalLink, Edit2, Layers, Loader2, Plus, Zap, Sparkles, Bot } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -42,6 +42,7 @@ export default function EstimatesPage() {
     freshness: null,
   })
   const [isSyncingRates, setIsSyncingRates] = useState(false)
+  const [isChatOpen, setIsChatOpen] = useState(false)
 
   const handleSyncRates = async (scenarioId: string) => {
     setIsSyncingRates(true)
@@ -241,16 +242,30 @@ export default function EstimatesPage() {
           </p>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleManualRefresh}
-          disabled={isRefreshing}
-          className="text-xs gap-1.5 cursor-pointer active:scale-95 transition-all shadow-xs"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
-          {isRefreshing ? 'Refreshing...' : 'Refresh Status'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsChatOpen(true)}
+            className="text-xs gap-1.5 cursor-pointer text-purple-700 bg-purple-50/80 border-purple-200 hover:bg-purple-100 hover:text-purple-900 shadow-2xs font-semibold"
+            title="Open Principal Solutions Architect"
+          >
+            <Bot className="h-3.5 w-3.5 text-purple-600" />
+            <span>AI Architect</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="text-xs gap-1.5 cursor-pointer active:scale-95 transition-all shadow-xs"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh Status'}
+          </Button>
+        </div>
       </div>
 
       {/* Editable Initial Prompt & Re-Run Trigger */}
@@ -748,6 +763,8 @@ export default function EstimatesPage() {
       {/* Interactive Pair-Architect Chat Drawer */}
       <ArchitectChatDrawer
         projectId={id}
+        isOpen={isChatOpen}
+        onOpenChange={setIsChatOpen}
         onApplyPromptUpdate={handleApplyPromptMutation}
       />
     </div>
