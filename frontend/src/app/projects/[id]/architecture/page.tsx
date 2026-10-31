@@ -211,10 +211,10 @@ export default function ArchitecturePage() {
             type="button"
             variant="outline"
             onClick={() => setIsChatOpen(true)}
-            className="gap-1.5 text-xs text-purple-700 bg-purple-50/80 border-purple-200 hover:bg-purple-100 hover:text-purple-900 cursor-pointer shadow-2xs font-semibold"
+            className="gap-1.5 text-xs bg-gradient-to-r from-purple-800 via-indigo-900 to-slate-950 text-white hover:from-purple-700 hover:to-indigo-800 cursor-pointer shadow-xs font-semibold border border-purple-500/40"
             title="Open Principal Solutions Architect"
           >
-            <Bot className="h-3.5 w-3.5 text-purple-600" />
+            <Bot className="h-3.5 w-3.5 text-amber-300" />
             <span>AI Architect</span>
           </Button>
 

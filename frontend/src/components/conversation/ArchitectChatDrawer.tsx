@@ -169,26 +169,32 @@ export function ArchitectChatDrawer({
   return (
     <>
       {/* 
-        When Closed: Discreet, minimal Left-Edge Docked Tab.
-        Does NOT block or cover diagrams. Only opens when user clicks it.
+        When Closed: Beautiful Floating Launcher Pill.
+        Cleanly docked at bottom-right corner, non-obtrusive, with glowing online pulse.
       */}
       {!isOpen && (
         <button
           type="button"
           onClick={() => handleToggleOpen(true)}
-          className="fixed left-0 md:left-64 top-1/2 -translate-y-1/2 z-40 flex items-center gap-1.5 pl-2.5 pr-3 py-2 rounded-r-xl bg-slate-900/95 hover:bg-purple-900 text-white shadow-lg border-y border-r border-purple-500/40 text-xs font-semibold cursor-pointer transition-all hover:pl-3.5 group"
-          title="Open AI Principal Cloud Architect"
+          className="fixed bottom-6 right-6 z-40 group flex items-center gap-2.5 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-purple-800 via-indigo-900 to-slate-950 text-white font-semibold text-xs shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer border border-purple-400/40 backdrop-blur-md"
+          title="Open AI Principal Cloud Architect & FinOps Advisor"
         >
-          <div className="h-6 w-6 rounded-full bg-purple-600/70 flex items-center justify-center shrink-0 text-amber-300 group-hover:scale-110 transition-transform">
-            <Bot className="h-3.5 w-3.5" />
+          <div className="h-7 w-7 rounded-full bg-purple-600/50 flex items-center justify-center shrink-0 text-amber-300 group-hover:scale-110 transition-transform shadow-inner border border-purple-400/30">
+            <Bot className="h-4 w-4" />
           </div>
-          <span className="hidden sm:inline text-[11px] font-medium tracking-wide text-purple-100 group-hover:text-white">
-            AI Architect
-          </span>
+          <div className="flex flex-col text-left">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold leading-tight tracking-tight">AI Architect</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            </div>
+            <span className="text-[10px] text-purple-200/90 font-normal leading-tight">
+              Live FinOps Copilot
+            </span>
+          </div>
         </button>
       )}
 
-      {/* When Open: Slide out from the LEFT */}
+      {/* When Open: Slide out smoothly from the LEFT */}
       {isOpen && (
         <>
           {/* Subtle click-outside backdrop */}
