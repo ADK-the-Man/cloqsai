@@ -20,6 +20,7 @@ from models.schemas import (
     DeltaClarificationQuestion,
 )
 from pricing.rate_lookup import lookup_sku_monthly_cost
+from pricing.freshness_engine import compute_freshness_report
 
 router = APIRouter()
 
@@ -48,6 +49,7 @@ async def get_scenarios(
             cost_drivers=s.cost_drivers or [],
             limitations=s.limitations or [],
             pricing_as_of=s.pricing_as_of,
+            freshness=compute_freshness_report(s),
             created_at=s.created_at,
         )
         for s in scenarios

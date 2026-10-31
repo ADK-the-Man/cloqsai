@@ -11,8 +11,11 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { toast } from 'sonner'
 import { ArchitectureDiagram } from '@/components/architecture/ArchitectureDiagram'
 import { PromptEditorCard } from '@/components/conversation/PromptEditorCard'
+import { ArchitectureAuditorCard } from '@/components/architecture/ArchitectureAuditorCard'
+import { ArchitectChatDrawer } from '@/components/conversation/ArchitectChatDrawer'
 import { getToken } from '@/lib/auth'
 
 export default function ArchitecturePage() {
@@ -150,6 +153,37 @@ export default function ArchitecturePage() {
     }
   }
 
+  const handleApplyPromptMutation = async (mutationText: string) => {
+    try {
+      const token = getToken()
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      }
+      const reqRes = await fetch(`/api/v1/projects/${id}/requirements`, { headers })
+      let currentText = ''
+      if (reqRes.ok) {
+        const reqData = await reqRes.json()
+        currentText = reqData.raw_text || ''
+      }
+
+      const newPrompt = currentText ? `${currentText.trim()}\n\n${mutationText.trim()}` : mutationText.trim()
+
+      await fetch(`/api/v1/projects/${id}/requirements/extract`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ raw_text: newPrompt }),
+      })
+
+      await fetch(`/api/v1/projects/${id}/architecture/generate`, { method: 'POST', headers })
+      await fetchArchitectures()
+      toast.success('Architecture updated with recommendation!')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to apply recommendation')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -185,6 +219,12 @@ export default function ArchitecturePage() {
       <PromptEditorCard
         projectId={id}
         onRerun={handleRerunPipeline}
+      />
+
+      {/* Well-Architected Auditor & AI Roaster */}
+      <ArchitectureAuditorCard
+        projectId={id}
+        onApplyMutation={handleApplyPromptMutation}
       />
 
       {architectures.length > 1 && (
@@ -351,6 +391,12 @@ export default function ArchitecturePage() {
           No architecture data generated.
         </div>
       )}
+
+      {/* Interactive Pair-Architect Chat Drawer */}
+      <ArchitectChatDrawer
+        projectId={id}
+        onApplyPromptUpdate={handleApplyPromptMutation}
+      />
     </div>
   )
 }

@@ -13,6 +13,9 @@ import { JobStatusCard } from '@/components/estimates/JobStatusCard'
 import { ArtifactCard } from '@/components/estimates/ArtifactCard'
 import { AddServiceModal } from '@/components/scenarios/AddServiceModal'
 import { AzureCalculatorModal } from '@/components/estimates/AzureCalculatorModal'
+import { PriceDriftModal } from '@/components/estimates/PriceDriftModal'
+import { ArchitectureAuditorCard } from '@/components/architecture/ArchitectureAuditorCard'
+import { ArchitectChatDrawer } from '@/components/conversation/ArchitectChatDrawer'
 import { PromptEditorCard } from '@/components/conversation/PromptEditorCard'
 import { getToken } from '@/lib/auth'
 
@@ -33,6 +36,72 @@ export default function EstimatesPage() {
     provider: 'aws',
   })
   const [runningDeltaEstimate, setRunningDeltaEstimate] = useState(false)
+  const [driftModalState, setDriftModalState] = useState<{ isOpen: boolean; scenario: any; freshness: any }>({
+    isOpen: false,
+    scenario: null,
+    freshness: null,
+  })
+  const [isSyncingRates, setIsSyncingRates] = useState(false)
+
+  const handleSyncRates = async (scenarioId: string) => {
+    setIsSyncingRates(true)
+    try {
+      const token = getToken()
+      const res = await fetch(`/api/v1/projects/${id}/estimates/${scenarioId}/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        toast.success(data.message || 'Estimate synced with live AWS rates!')
+        await Promise.all([fetchScenarios(), fetchEstimates()])
+        setDriftModalState((prev) => ({ ...prev, isOpen: false }))
+      } else {
+        toast.error('Failed to sync estimate rates')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Error syncing rates')
+    } finally {
+      setIsSyncingRates(false)
+    }
+  }
+
+  const handleApplyPromptMutation = async (mutationText: string) => {
+    try {
+      const token = getToken()
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      }
+      const reqRes = await fetch(`/api/v1/projects/${id}/requirements`, { headers })
+      let currentText = ''
+      if (reqRes.ok) {
+        const reqData = await reqRes.json()
+        currentText = reqData.raw_text || ''
+      }
+
+      const newPrompt = currentText ? `${currentText.trim()}\n\n${mutationText.trim()}` : mutationText.trim()
+
+      await fetch(`/api/v1/projects/${id}/requirements/extract`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ raw_text: newPrompt }),
+      })
+
+      await fetch(`/api/v1/projects/${id}/architecture/generate`, { method: 'POST', headers })
+      await fetch(`/api/v1/projects/${id}/scenarios/generate`, { method: 'POST', headers })
+
+      await Promise.all([fetchScenarios(), fetchEstimates()])
+      toast.success('Architecture and estimates updated with recommendation!')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to apply recommendation')
+    }
+  }
 
   const handleRunDeltaEstimate = async (scenarioId: string) => {
     setRunningDeltaEstimate(true)
@@ -401,6 +470,14 @@ export default function EstimatesPage() {
         </div>
       )}
 
+      {/* Section 2: AI Architecture Roast & Well-Architected Audit */}
+      <div className="space-y-2 pt-2">
+        <ArchitectureAuditorCard
+          projectId={id}
+          onApplyMutation={handleApplyPromptMutation}
+        />
+      </div>
+
       {/* Section 4: Infrastructure Workload Overview & Line Items Breakdown */}
       {scenarios.length > 0 && (
         <div className="space-y-4 pt-6 border-t border-slate-200">
@@ -446,7 +523,7 @@ export default function EstimatesPage() {
             .map((scen) => (
               <Card key={scen.id} className="border-slate-200 shadow-xs overflow-hidden">
                 <CardHeader className="p-3.5 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="uppercase font-bold text-[10px] bg-white text-slate-800">
                       {scen.provider}
                     </Badge>
@@ -456,13 +533,65 @@ export default function EstimatesPage() {
                     <span className="text-xs text-slate-500 font-medium">
                       ({scen.resources.length} active line items)
                     </span>
+
+                    {/* Freshness & Rate Drift Status Badge */}
+                    {(() => {
+                      const f = scen.freshness
+                      const hasDrift = f?.status === 'drift_detected'
+                      const isStale = f?.is_stale || f?.status === 'stale'
+
+                      if (hasDrift) {
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setDriftModalState({ isOpen: true, scenario: scen, freshness: f })}
+                            className="px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-3xs"
+                          >
+                            <Zap className="h-3 w-3 text-amber-600" />
+                            <span>Rate Drift ({f.drift_amount_usd < 0 ? '-' : '+'}${Math.abs(f.drift_amount_usd).toFixed(2)}/mo)</span>
+                          </button>
+                        )
+                      }
+                      if (isStale) {
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setDriftModalState({ isOpen: true, scenario: scen, freshness: f })}
+                            className="px-2 py-0.5 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-[10px] font-semibold flex items-center gap-1 cursor-pointer transition-all shadow-3xs"
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                            <span>Stale Pricing ({f?.age_days || 30}d old)</span>
+                          </button>
+                        )
+                      }
+                      return (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-semibold flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          <span>Live {scen.provider === 'aws' ? 'AWS 2026.10' : 'Azure'} Rates</span>
+                        </span>
+                      )
+                    })()}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
+
+                  <div className="flex items-center gap-2.5">
+                    <div className="text-right mr-1">
                       <span className="text-xs font-bold text-slate-900">
                         ${scen.monthly_cost_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })}/mo
                       </span>
                     </div>
+
+                    {/* 1-Click Sync Rates Button */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleSyncRates(scen.id)}
+                      disabled={isSyncingRates}
+                      className="h-7 text-[11px] px-2.5 text-slate-700 hover:text-blue-600 hover:border-blue-300 gap-1 cursor-pointer shadow-3xs"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${isSyncingRates ? 'animate-spin text-blue-600' : ''}`} />
+                      <span>Sync Rates</span>
+                    </Button>
+
                     <Button
                       size="sm"
                       onClick={() => handleRunDeltaEstimate(scen.id)}
@@ -603,6 +732,24 @@ export default function EstimatesPage() {
           />
         )
       })()}
+
+      {/* Price Drift Modal */}
+      {driftModalState.scenario && (
+        <PriceDriftModal
+          isOpen={driftModalState.isOpen}
+          onClose={() => setDriftModalState((prev) => ({ ...prev, isOpen: false }))}
+          scenario={driftModalState.scenario}
+          freshness={driftModalState.freshness}
+          onSync={handleSyncRates}
+          isSyncing={isSyncingRates}
+        />
+      )}
+
+      {/* Interactive Pair-Architect Chat Drawer */}
+      <ArchitectChatDrawer
+        projectId={id}
+        onApplyPromptUpdate={handleApplyPromptMutation}
+      />
     </div>
   )
 }

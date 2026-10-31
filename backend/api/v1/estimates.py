@@ -9,9 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from api.deps import get_project_or_404
 from models.db import Project, Scenario, EstimateJob, Artifact
-from models.schemas import EstimateCreateRequest, EstimateJobResponse, ArtifactResponse
+from models.schemas import EstimateCreateRequest, EstimateJobResponse, ArtifactResponse, EstimateSyncResponse, EstimateFreshnessReport
 from jobs.worker import submit_job
 from jobs.job_states import JobState
+from pricing.freshness_engine import compute_freshness_report, sync_scenario_estimate
 
 router = APIRouter()
 
@@ -85,6 +86,10 @@ async def list_project_estimates(
         art_res = await db.execute(select(Artifact).where(Artifact.estimate_job_id == j.id))
         artifacts = art_res.scalars().all()
 
+        scen_res = await db.execute(select(Scenario).where(Scenario.id == j.scenario_id))
+        scenario = scen_res.scalar_one_or_none()
+        freshness = compute_freshness_report(scenario) if scenario else None
+
         output.append(EstimateJobResponse(
             id=j.id,
             project_id=j.project_id,
@@ -94,6 +99,7 @@ async def list_project_estimates(
             status_message=j.status_message,
             job_metadata=j.job_metadata or {},
             error_detail=j.error_detail,
+            freshness=freshness,
             artifacts=[
                 ArtifactResponse(
                     id=a.id,
@@ -201,3 +207,34 @@ async def retry_estimate_job(
         created_at=job.created_at,
         updated_at=job.updated_at,
     )
+
+
+@router.get("/projects/{id}/estimates/freshness", response_model=List[EstimateFreshnessReport])
+async def get_project_estimates_freshness(
+    project: Project = Depends(get_project_or_404),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns pricing freshness status and drift reports for all scenarios in the project.
+    """
+    scen_res = await db.execute(select(Scenario).where(Scenario.project_id == project.id))
+    scenarios = scen_res.scalars().all()
+    return [compute_freshness_report(s) for s in scenarios]
+
+
+@router.post("/projects/{id}/estimates/{scenario_id}/sync", response_model=EstimateSyncResponse)
+async def sync_estimate_pricing(
+    scenario_id: uuid.UUID,
+    project: Project = Depends(get_project_or_404),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    1-Click sync: re-evaluates scenario pricing against live AWS/Azure catalog rates,
+    stamping a fresh pricing_as_of timestamp and computing exact line-item rate diffs.
+    """
+    try:
+        return await sync_scenario_estimate(db, scenario_id, project)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to sync pricing: {e}")

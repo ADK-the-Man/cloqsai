@@ -8,9 +8,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from api.deps import get_project_or_404
-from models.db import Project, Conversation
-from models.schemas import ConversationResponse, AnswerRequest, ConversationStatusResponse, ConversationMessage
+from models.db import Project, Conversation, Scenario
+from models.schemas import (
+    ConversationResponse,
+    AnswerRequest,
+    ConversationStatusResponse,
+    ConversationMessage,
+    ArchitectChatRequest,
+    ArchitectChatResponse,
+)
 from ai.stages.clarification_engine import clarification_engine
+from ai.stages.architect_chat import chat_with_architect
 
 router = APIRouter()
 
@@ -150,3 +158,60 @@ async def get_conversation_status(
         completeness_score=conv.completeness_score,
         questions_remaining_estimate=0 if conv.is_complete else remaining,
     )
+
+
+@router.post("/projects/{id}/conversation/chat", response_model=ArchitectChatResponse)
+async def chat_with_principal_architect(
+    req: ArchitectChatRequest,
+    project: Project = Depends(get_project_or_404),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Real-time interactive chat with the AI Principal Cloud Architect.
+    Understands current architecture, diagram, resources, and pricing.
+    Can answer technical trade-off questions and propose 1-click architecture prompt mutations.
+    """
+    # 1. Fetch recommended scenario resources for context
+    scen_res = await db.execute(
+        select(Scenario)
+        .where(Scenario.project_id == project.id, Scenario.scenario_type == "recommended")
+    )
+    scenario = scen_res.scalars().first()
+    resources = scenario.resources if scenario else []
+    monthly_cost = scenario.monthly_cost_usd if scenario else (project.monthly_cost_estimate or 0.0)
+
+    # 2. Fetch conversation record to record chat messages
+    conv_res = await db.execute(select(Conversation).where(Conversation.project_id == project.id))
+    conv = conv_res.scalar_one_or_none()
+
+    prompt = project.description or (conv.collected_requirements.get("raw_text") if conv and conv.collected_requirements else "")
+
+    # 3. Call Architect Chat Engine
+    response = await chat_with_architect(
+        user_msg=req.message,
+        history=req.history,
+        raw_prompt=prompt,
+        resources=resources,
+        monthly_cost=monthly_cost,
+    )
+
+    # 4. Save messages to conversation history if conversation exists
+    if conv:
+        messages = list(conv.messages or [])
+        messages.append({
+            "role": "user",
+            "content": req.message,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "question_id": None
+        })
+        messages.append({
+            "role": "assistant",
+            "content": response.reply,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "question_id": None
+        })
+        conv.messages = messages
+        conv.updated_at = datetime.now(timezone.utc)
+        await db.commit()
+
+    return response

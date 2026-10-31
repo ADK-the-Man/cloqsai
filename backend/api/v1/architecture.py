@@ -8,9 +8,10 @@ from sqlalchemy import select, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from api.deps import get_project_or_404
-from models.db import Project, Architecture, Conversation
-from models.schemas import ArchitectureResponse, ArchitectureService, DiagramData
+from models.db import Project, Architecture, Conversation, Scenario
+from models.schemas import ArchitectureResponse, ArchitectureService, DiagramData, WellArchitectedAuditReport
 from ai.stages.architecture_selector import build_architecture_graph
+from ai.stages.architecture_auditor import run_architecture_audit
 
 router = APIRouter()
 
@@ -161,3 +162,27 @@ async def generate_architectures(
         )
         for a in created
     ]
+
+
+@router.get("/projects/{id}/architecture/audit", response_model=WellArchitectedAuditReport)
+async def get_architecture_audit(
+    project: Project = Depends(get_project_or_404),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Audits the current architecture against the 5 AWS Well-Architected Framework pillars,
+    producing an overall score, roast verdict, and actionable cost/resilience findings.
+    """
+    # Fetch recommended scenario resources for accurate cost & component audit
+    scen_res = await db.execute(
+        select(Scenario)
+        .where(Scenario.project_id == project.id, Scenario.scenario_type == "recommended")
+    )
+    scenario = scen_res.scalars().first()
+
+    resources = scenario.resources if scenario else []
+    monthly_cost = scenario.monthly_cost_usd if scenario else (project.monthly_cost_estimate or 0.0)
+    provider = scenario.provider if scenario else (project.provider_selection or "aws")
+
+    prompt = project.description or ""
+    return await run_architecture_audit(prompt, resources, monthly_cost, provider)

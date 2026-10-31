@@ -262,6 +262,29 @@ class ScenarioResource(BaseModel):
     is_optional: bool = False
 
 
+class LineItemDrift(BaseModel):
+    resource_id: str
+    resource_name: str
+    previous_cost_usd: float
+    current_cost_usd: float
+    variance_usd: float
+    variance_percent: float
+    change_type: str  # "dropped" | "increased" | "unchanged" | "catalog_update"
+    note: str = ""
+
+
+class EstimateFreshnessReport(BaseModel):
+    status: str  # "fresh" | "stale" | "drift_detected"
+    pricing_as_of: Optional[datetime] = None
+    age_days: int = 0
+    is_stale: bool = False
+    drift_amount_usd: float = 0.0
+    drift_percentage: float = 0.0
+    latest_catalog_version: str = "AWS 2026.10-Live"
+    summary_message: str = ""
+    line_item_drifts: List[LineItemDrift] = Field(default_factory=list)
+
+
 class ScenarioResponse(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
@@ -275,6 +298,7 @@ class ScenarioResponse(BaseModel):
     cost_drivers: List[str]
     limitations: List[str]
     pricing_as_of: Optional[datetime] = None
+    freshness: Optional[EstimateFreshnessReport] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -346,12 +370,72 @@ class EstimateJobResponse(BaseModel):
     status_message: Optional[str] = None
     job_metadata: Dict[str, Any]
     error_detail: Optional[str] = None
+    freshness: Optional[EstimateFreshnessReport] = None
     artifacts: List["ArtifactResponse"] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
     completed_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+class EstimateSyncResponse(BaseModel):
+    success: bool
+    scenario_id: uuid.UUID
+    previous_monthly_cost: float
+    updated_monthly_cost: float
+    variance_monthly_usd: float
+    variance_percentage: float
+    freshness: EstimateFreshnessReport
+    message: str
+
+
+# ── AI Architecture Auditor & Roaster ──────────────────────────────────────────
+
+class WellArchitectedFinding(BaseModel):
+    id: str
+    pillar: str  # "cost_optimization" | "reliability" | "security" | "performance_efficiency" | "operational_excellence"
+    severity: str  # "critical" | "warning" | "cost_trap" | "opportunity" | "praise"
+    title: str
+    roast: str
+    remedy: str
+    potential_savings_monthly_usd: float = 0.0
+    impact_summary: str = ""
+    action_type: Optional[str] = None
+    prompt_mutation: Optional[str] = None
+
+
+class WellArchitectedAuditReport(BaseModel):
+    overall_score: int
+    cost_score: int
+    reliability_score: int
+    security_score: int
+    operations_score: int
+    executive_summary: str
+    roast_verdict: str
+    total_potential_savings_monthly: float
+    findings: List[WellArchitectedFinding]
+    recommendations_count: int
+    audited_at: datetime
+
+
+class ArchitectChatMessage(BaseModel):
+    role: str  # "user" | "assistant" | "system"
+    content: str
+    timestamp: Optional[str] = None
+
+
+class ArchitectChatRequest(BaseModel):
+    message: str
+    history: List[ArchitectChatMessage] = Field(default_factory=list)
+
+
+class ArchitectChatResponse(BaseModel):
+    reply: str
+    suggested_prompt_update: Optional[str] = None
+    suggested_actions: List[str] = Field(default_factory=list)
+    impacted_services: List[str] = Field(default_factory=list)
+    projected_cost_delta: Optional[float] = None
 
 
 class EstimateListResponse(BaseModel):
