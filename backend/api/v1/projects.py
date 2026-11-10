@@ -10,7 +10,14 @@ from core.database import get_db
 from core.security import get_current_user
 from api.deps import get_project_or_404
 from models.db import User, Project, Conversation, Scenario
-from models.schemas import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectListResponse
+from models.schemas import (
+    ProjectCreate,
+    ProjectUpdate,
+    ProjectResponse,
+    ProjectListResponse,
+    GitHubAnalysisRequest,
+    GitHubAnalysisResponse,
+)
 from pricing.freshness_engine import compute_freshness_report
 
 router = APIRouter()
@@ -100,6 +107,24 @@ async def create_project(
     await db.refresh(project)
 
     return ProjectResponse.model_validate(project)
+
+
+@router.post("/projects/analyze-github", response_model=GitHubAnalysisResponse)
+async def analyze_github_repo(
+    req: GitHubAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Analyzes a GitHub repository codebase (languages, frameworks, DBs, Docker, queues)
+    and generates an infrastructure proposal with suggested cloud services and project prompt.
+    """
+    try:
+        from ai.stages.github_analyzer import analyze_github_repository
+        return await analyze_github_repository(req)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to analyze GitHub repository: {str(e)}")
 
 
 @router.get("/projects/{id}", response_model=ProjectResponse)

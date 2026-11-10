@@ -498,6 +498,41 @@ class ErrorResponse(BaseModel):
     code: Optional[str] = None
 
 
+# ── GitHub Repository Analysis ────────────────────────────────────────────────
+
+class GitHubComponentFinding(BaseModel):
+    category: str  # compute, database, cache, queue, storage, framework, security
+    name: str  # e.g. "FastAPI", "PostgreSQL", "Redis", "Celery", "Next.js"
+    confidence: float = 0.95
+    detail: str  # e.g. "Found in requirements.txt (fastapi>=0.100.0)"
+    detected_in: Optional[str] = None  # file path e.g. "backend/requirements.txt"
+
+
+class GitHubAnalysisRequest(BaseModel):
+    repo_url: str
+    branch: Optional[str] = None
+    github_token: Optional[str] = None
+    traffic_scale: Optional[str] = "medium"  # small, medium, high, enterprise
+    provider_preference: Optional[str] = "both"  # aws, azure, both
+
+
+class GitHubAnalysisResponse(BaseModel):
+    repo_name: str
+    owner: str
+    default_branch: str
+    description: Optional[str] = None
+    primary_language: str
+    frameworks: List[str] = []
+    detected_components: List[GitHubComponentFinding] = []
+    recommended_services_aws: List[str] = []
+    recommended_services_azure: List[str] = []
+    suggested_project_name: str
+    suggested_prompt: str
+    summary_markdown: str
+    estimated_monthly_range: Dict[str, float] = {"min": 80.0, "max": 250.0}
+    scanned_files_count: int = 0
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 class HealthResponse(BaseModel):
