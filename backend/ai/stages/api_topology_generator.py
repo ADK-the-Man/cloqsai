@@ -25,7 +25,9 @@ def parse_repo_from_text(text: str) -> Optional[Tuple[str, str, Optional[str]]]:
     """Extracts GitHub owner, repo, and optional branch from URLs or text."""
     if not text:
         return None
-    url_match = re.search(r'https?://github\.com/([a-zA-Z0-9_\-\.]+)/([a-zA-Z0-9_\-\.]+)', text)
+
+    # Match https?://github.com/owner/repo or github.com/owner/repo
+    url_match = re.search(r'(?:https?://)?(?:www\.)?github\.com/([a-zA-Z0-9_\-\.]+)/([a-zA-Z0-9_\-\.]+)', text)
     if url_match:
         owner = url_match.group(1)
         repo = url_match.group(2).replace(".git", "")
@@ -35,9 +37,17 @@ def parse_repo_from_text(text: str) -> Optional[Tuple[str, str, Optional[str]]]:
             branch = tree_m.group(1)
         return owner, repo, branch
 
-    rep_match = re.search(r"repository\s*['\"]([a-zA-Z0-9_\-\.]+)/([a-zA-Z0-9_\-\.]+)['\"]", text)
-    if rep_match:
-        return rep_match.group(1), rep_match.group(2).replace(".git", ""), None
+    # Match repository 'owner/repo' or repo: owner/repo or for repository owner/repo
+    rep_patterns = [
+        r"(?:repository|repo)\s*[:=\s]?\s*['\"]([a-zA-Z0-9_\-\.]+)/([a-zA-Z0-9_\-\.]+)['\"]",
+        r"(?:for|from)\s+(?:repository|repo)\s+['\"]?([a-zA-Z0-9_\-\.]+)/([a-zA-Z0-9_\-\.]+)['\"]?",
+        r"(?:repository|repo)\s*[:=\s]\s*([a-zA-Z0-9_\-\.]+)/([a-zA-Z0-9_\-\.]+)"
+    ]
+    for pattern in rep_patterns:
+        rep_m = re.search(pattern, text, re.IGNORECASE)
+        if rep_m:
+            return rep_m.group(1), rep_m.group(2).replace(".git", ""), None
+
     return None
 
 
@@ -338,19 +348,22 @@ def build_live_repo_api_stack(
 def synthesize_default_api_stack(
     project_name: str,
     project_desc: str,
-    frameworks: List[str],
-    components: List[str]
+    raw_requirements: Optional[str] = None,
+    frameworks: Optional[List[str]] = None,
+    components: Optional[List[str]] = None
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Synthesizes a realistic, production-grade microservice API surface tailored
-    to the specific application domain (Healthcare / E-commerce / Gaming & Wasm / AI / SaaS).
+    to the specific application domain (Healthcare / E-commerce / Gaming & Wasm / FinTech / Social / SaaS).
     """
-    combined_text = f"{project_name} {project_desc}".lower()
+    frameworks = frameworks or []
+    components = components or []
+    combined_text = f"{project_name} {project_desc} {raw_requirements or ''}".lower()
 
-    is_blood_bank_or_health = bool(re.search(r'\b(blood|donor|donors|donation|hospital|hospitals|patient|clinic|medical|transfusion|blood-bank)\b', combined_text, re.IGNORECASE))
-    is_ecommerce = bool(re.search(r'\b(store|shop|shopping|commerce|cart|checkout|orders?|inventory)\b', combined_text, re.IGNORECASE)) and not is_blood_bank_or_health
+    is_blood_bank_or_health = bool(re.search(r'\b(blood|donor|donors|donation|hospital|hospitals|patient|clinic|medical|transfusion|blood-bank|healthcare|pharma)\b', combined_text, re.IGNORECASE))
+    is_ecommerce = bool(re.search(r'\b(store|shop|shopping|commerce|cart|checkout|orders?|inventory|marketplace)\b', combined_text, re.IGNORECASE)) and not is_blood_bank_or_health
     is_gaming_or_wasm = bool(re.search(r'\b(game|games|gaming|cricket|wasm|webassembly|emulator|player|match)\b', combined_text, re.IGNORECASE)) and not is_blood_bank_or_health and not is_ecommerce
-    is_ai_platform = bool(re.search(r'\b(llm|finops|cloud cost|agentic|architecture generator|pricing engine)\b', combined_text, re.IGNORECASE)) and not is_blood_bank_or_health and not is_ecommerce and not is_gaming_or_wasm
+    is_ai_platform = bool(re.search(r'\b(llm platform|agentic platform|ai model serving|model training pipeline|genai chatbot platform)\b', combined_text, re.IGNORECASE)) and not is_blood_bank_or_health and not is_ecommerce and not is_gaming_or_wasm
 
     if is_blood_bank_or_health:
         controllers = [
@@ -711,7 +724,7 @@ async def build_project_api_topology(
             logger.warning(f"Could not extract live GitHub routes for {repo_name}: {e}")
 
     # 2. Build or Synthesize Stack
-    if live_routes and len(live_routes) >= 3:
+    if live_routes and len(live_routes) >= 1:
         controllers, resources, endpoints = build_live_repo_api_stack(
             repo_name=repo_name or project_name,
             routes=live_routes,
@@ -721,6 +734,7 @@ async def build_project_api_topology(
         controllers, resources, endpoints = synthesize_default_api_stack(
             project_name=project_name,
             project_desc=project_desc,
+            raw_requirements=raw_requirements,
             frameworks=frameworks,
             components=components
         )

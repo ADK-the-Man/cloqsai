@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ai.llm_client import get_llm_client, LLMConfigError
 
+from ai.stages.sizing_engine import classify_finops_tier
+
 logger = logging.getLogger(__name__)
 
 # Global LRU cache for prompt rankings to optimize latency and token spend
@@ -165,7 +167,8 @@ def compute_deterministic_ranking(raw_text: str, req: Dict[str, Any]) -> Dict[st
                 except (ValueError, TypeError):
                     pass
 
-    is_tight_budget = bool(target_budget and target_budget <= 100)
+    budget_tier = classify_finops_tier(target_budget, is_enterprise_ha=False)
+    is_tight_budget = budget_tier in ["micro", "starter"]
 
     # 2. Compute Pattern Affinity Scoring
     k8s_negation = is_negated(r"\b(?:kubernetes|k8s|eks|aks)\b", text)

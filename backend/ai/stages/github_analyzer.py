@@ -254,23 +254,27 @@ def generate_deterministic_infrastructure_blueprint(
     # Scale parameters
     if traffic_scale == "small":
         user_concurrency = "50–150 concurrent users"
-        ha_text = "Single-AZ cost-optimized container instance with automated health restarts"
-        db_tier_desc = "Shared burstable cluster (cost-optimized for staging/MVP)"
-        cost_range = {"min": 45.0, "max": 120.0}
+        ha_text = "Single-AZ cost-optimized container instance with automated health restarts (minimal idle spend)"
+        db_tier_desc = "Single-AZ burstable database (db.t4g.micro/small or Azure B1ms, cost-optimized for MVP/staging)"
+        cache_desc = "Zero-cost in-process application caching & edge CDN caching (eliminates $35-$70/mo dedicated Redis idle fee)"
+        cost_range = {"min": 35.0, "max": 95.0}
     elif traffic_scale == "high":
         user_concurrency = "2,000–5,000 concurrent users"
         ha_text = "Multi-AZ high availability across 3 Availability Zones with horizontal pod autoscaling"
         db_tier_desc = "Dedicated high-memory cluster with provisioned IOPS and automated read replica"
+        cache_desc = "Dedicated Multi-AZ Redis cluster for sub-millisecond query offload & token session store"
         cost_range = {"min": 450.0, "max": 1200.0}
     elif traffic_scale == "enterprise":
         user_concurrency = "10,000+ concurrent users"
         ha_text = "Multi-Region active-active failover with automated latency routing and dedicated cluster"
         db_tier_desc = "Enterprise managed cluster with multi-region replication and automated 35-day backup retention"
+        cache_desc = "High-memory distributed Redis cluster with cluster mode enabled"
         cost_range = {"min": 1100.0, "max": 3200.0}
     else:  # medium (default)
         user_concurrency = "250–600 concurrent users"
         ha_text = "Multi-AZ deployment across 2 Availability Zones with 99.9% uptime SLA"
         db_tier_desc = "Production-grade managed cluster with automated daily snapshots and 7-day retention"
+        cache_desc = "Managed Redis in-memory cache for session clustering" if has_cache else "Stateless architecture with edge caching"
         cost_range = {"min": 140.0, "max": 380.0}
 
     # Recommended AWS Services
@@ -353,7 +357,7 @@ def generate_deterministic_infrastructure_blueprint(
         f"- Target Workload: {clean_title} built with {primary_language}\n"
         f"- Compute Tier: {compute_spec}\n"
         f"- Database Tier: {db_spec}\n"
-        f"- Caching & State: {'Redis in-memory tier for low-latency session and query offload' if has_cache else 'Stateless architecture with edge caching'}\n"
+        f"- Caching & State: {cache_desc}\n"
         f"- Component Findings:\n{comp_list_text}\n\n"
         f"Workload Requirements & Constraints:\n"
         f"- Target Concurrency: {user_concurrency}\n"
@@ -480,12 +484,18 @@ async def analyze_github_repository(req: GitHubAnalysisRequest) -> GitHubAnalysi
     try:
         llm = get_llm_client()
         detected_bullets = "\n".join([f"- {f.name} ({f.category}): {f.detail}" for f in findings])
+        scale_guideline = (
+            "Strict constraint: Workload scale is SMALL ($35–$95/mo budget). Target 50–150 users. Prioritize serverless/burstable compute (App Runner / ECS Fargate, Azure Container Apps), single-AZ burstable database, zero-cost in-process caching, and zero idle enterprise control planes (NO EKS, NO MWAA, NO dedicated Multi-AZ Redis)."
+            if (req.traffic_scale or "medium") == "small"
+            else f"Workload scale is {req.traffic_scale or 'medium'}. Align compute, clustering, and caching proportionally with target traffic."
+        )
         enrich_prompt = (
             f"You are a Principal Cloud Solutions Architect at CLOQS AI. A developer wants to deploy the GitHub repository "
             f"'{owner}/{repo}' ({primary_lang}).\n"
             f"Detected repository stack:\n{detected_bullets}\n\n"
+            f"Scale Target & Financial Constraints:\n{scale_guideline}\n\n"
             f"Write a crisp, authoritative 3-paragraph cloud architecture requirement prompt to size their AWS and Azure infrastructure. "
-            f"Specify compute sizing, database clustering, caching, storage, and reliability targets for a {req.traffic_scale} workload."
+            f"Specify compute sizing, database clustering, caching, storage, and reliability targets strictly adhering to the scale constraints."
         )
         llm_res = await llm.chat_completion(
             messages=[{"role": "user", "content": enrich_prompt}],

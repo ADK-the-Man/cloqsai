@@ -10,10 +10,13 @@
 import { toPng, toSvg } from 'html-to-image'
 
 export async function downloadCanvasAsPng(containerEl: HTMLElement, filename = 'cloud-architecture.png') {
+  // Capture strictly the ReactFlow canvas element to ensure toolbars/headers are physically excluded
+  const targetEl = containerEl.querySelector<HTMLElement>('.react-flow') || containerEl
+
   // Query all overlay elements that should NEVER appear in exported image
   const ignoredEls = Array.from(
     containerEl.querySelectorAll<HTMLElement>(
-      '.export-ignore, [data-export-ignore="true"], .react-flow__controls, .react-flow__minimap, .react-flow__attribution, .react-flow__panel'
+      '.export-ignore, [data-export-ignore="true"], .react-flow__controls, .react-flow__minimap, .react-flow__attribution, .react-flow__panel, [role="dialog"], button'
     )
   )
 
@@ -23,18 +26,24 @@ export async function downloadCanvasAsPng(containerEl: HTMLElement, filename = '
     el.style.display = 'none'
   })
 
+  // Allow browser layout flush
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
   try {
-    const dataUrl = await toPng(containerEl, {
+    const dataUrl = await toPng(targetEl, {
       backgroundColor: '#ffffff',
       quality: 0.98,
       pixelRatio: 2,
       filter: (node: HTMLElement) => {
+        if (!node) return true
+        if (node.tagName === 'BUTTON') return false
         if (node.classList) {
           if (
             node.classList.contains('export-ignore') ||
             node.classList.contains('react-flow__controls') ||
             node.classList.contains('react-flow__minimap') ||
             node.classList.contains('react-flow__attribution') ||
+            node.classList.contains('react-flow__panel') ||
             node.dataset?.exportIgnore === 'true' ||
             node.getAttribute?.('data-export-ignore') === 'true'
           ) {
@@ -62,9 +71,11 @@ export async function downloadCanvasAsPng(containerEl: HTMLElement, filename = '
 }
 
 export async function downloadCanvasAsSvg(containerEl: HTMLElement, filename = 'cloud-architecture.svg') {
+  const targetEl = containerEl.querySelector<HTMLElement>('.react-flow') || containerEl
+
   const ignoredEls = Array.from(
     containerEl.querySelectorAll<HTMLElement>(
-      '.export-ignore, [data-export-ignore="true"], .react-flow__controls, .react-flow__minimap, .react-flow__attribution, .react-flow__panel'
+      '.export-ignore, [data-export-ignore="true"], .react-flow__controls, .react-flow__minimap, .react-flow__attribution, .react-flow__panel, [role="dialog"], button'
     )
   )
 
@@ -73,16 +84,21 @@ export async function downloadCanvasAsSvg(containerEl: HTMLElement, filename = '
     el.style.display = 'none'
   })
 
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
   try {
-    const dataUrl = await toSvg(containerEl, {
+    const dataUrl = await toSvg(targetEl, {
       backgroundColor: '#ffffff',
       filter: (node: HTMLElement) => {
+        if (!node) return true
+        if (node.tagName === 'BUTTON') return false
         if (node.classList) {
           if (
             node.classList.contains('export-ignore') ||
             node.classList.contains('react-flow__controls') ||
             node.classList.contains('react-flow__minimap') ||
             node.classList.contains('react-flow__attribution') ||
+            node.classList.contains('react-flow__panel') ||
             node.dataset?.exportIgnore === 'true' ||
             node.getAttribute?.('data-export-ignore') === 'true'
           ) {

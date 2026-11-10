@@ -5,6 +5,9 @@ Dynamic workload sizing engine: analyzes explicit and implicit architecture comp
 across dynamic AWS and Azure regions.
 """
 from typing import Any, Dict, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 AZURE_REGION_MAP = {
@@ -43,6 +46,35 @@ def check_feature_intent(raw_text: str, positive_keywords: List[str], negative_k
             if not is_neg:
                 return True
     return False
+
+
+def classify_finops_tier(target_budget: Optional[float], concurrent_users: int = 200, is_enterprise_ha: bool = False) -> str:
+    """
+    Categorizes the workload into a standardized FinOps architectural tier:
+      - 'micro'      (<= $75/mo): Extreme cost optimization, zero-idle serverless, burstable single-AZ, zero expensive managed control planes.
+      - 'starter'    ($75 - $200/mo): Balanced small production / MVP, burstable managed database, container PaaS (App Runner / ECS), minimal monitoring.
+      - 'standard'   ($200 - $600/mo): Production standard, Multi-AZ high availability, managed primary DB, load balancing, autoscaling containers.
+      - 'enterprise' (> $600/mo): Enterprise scale, dedicated clusters (EKS/AKS), Multi-AZ with read replicas, high memory cache, WAF, provisioned IOPS.
+    """
+    if target_budget is not None and target_budget > 0:
+        if target_budget <= 75:
+            return "micro"
+        elif target_budget <= 200:
+            return "starter"
+        elif target_budget <= 600:
+            return "standard"
+        else:
+            return "enterprise"
+
+    # Inferred when target_budget is unspecified
+    if is_enterprise_ha or concurrent_users >= 5000:
+        return "enterprise"
+    elif concurrent_users >= 500:
+        return "standard"
+    elif concurrent_users >= 150:
+        return "starter"
+    else:
+        return "micro"
 
 
 def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
@@ -123,6 +155,13 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         else:
             region = "us-east-1"
 
+    is_enterprise_ha = any(k in raw_text for k in [
+        "multi-region", "multi region", "active-active", "active active",
+        "global failover", "disaster recovery multi-region"
+    ])
+    concurrent_users = _get_int_val(req.get("concurrent_users"), 200)
+    budget_tier = classify_finops_tier(target_budget, concurrent_users, is_enterprise_ha)
+
     # S3 / Object Storage (Only if requested, not negated)
     s3_pos = [
         "s3", "bucket", "blob", "object storage", "upload", "uploads", "uploading",
@@ -147,9 +186,12 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         "no cache", "no redis", "without cache", "without redis",
         "no caching", "don't need cache", "dont need redis"
     ]
-    has_redis = check_feature_intent(raw_text, redis_pos, redis_neg) or bool(req.get("has_redis"))
-    if target_budget and target_budget <= 100 and not any(k in raw_text for k in ["redis", "elasticache"]):
-        has_redis = False
+    explicit_redis = check_feature_intent(raw_text, redis_pos, redis_neg) or bool(req.get("has_redis"))
+    # In micro/starter tier, only include dedicated Redis if explicitly named; otherwise use zero-cost in-process cache
+    if budget_tier in ["micro", "starter"]:
+        has_redis = explicit_redis and any(k in raw_text for k in ["redis", "elasticache", "valkey", "memorydb"])
+    else:
+        has_redis = explicit_redis or (concurrent_users >= 1000 and any(k in raw_text for k in ["sub-millisecond", "query offload", "session store"]))
 
     # Relational Database (RDS / PostgreSQL / MySQL)
     rds_pos = [
@@ -172,9 +214,12 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
     airflow_neg = [
         "no airflow", "without airflow", "no mwaa", "no dags", "without dags"
     ]
-    has_airflow = check_feature_intent(raw_text, airflow_pos, airflow_neg) or bool(req.get("has_airflow"))
-    if target_budget and target_budget <= 100 and not any(k in raw_text for k in ["airflow", "mwaa"]):
-        has_airflow = False
+    explicit_airflow = check_feature_intent(raw_text, airflow_pos, airflow_neg) or bool(req.get("has_airflow"))
+    if budget_tier in ["micro", "starter"]:
+        # MWAA ($358/mo base) is physically impossible in micro/starter; use Lambda/workers unless explicitly requested by name
+        has_airflow = explicit_airflow and any(k in raw_text for k in ["mwaa", "apache airflow"])
+    else:
+        has_airflow = explicit_airflow
 
     # Master-Slave / Read Replica DB Architecture
     replica_pos = [
@@ -238,11 +283,21 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         "i need one eks", "need one eks", "one eks with nodes"
     ])
 
+    # Kubernetes (EKS / AKS): require explicit Kubernetes keywords or high microservice density
+    explicit_k8s = any(k in raw_text for k in ["eks", "aks", "kubernetes", "k8s", "helm", "karpenter", "kubectl"])
+    if explicit_k8s:
+        has_eks = True
+    elif budget_tier in ["micro", "starter"]:
+        has_eks = False
+    else:
+        has_eks = no_separate_ec2
+
     signals = {
         "region": region,
         "target_budget": target_budget,
+        "budget_tier": budget_tier,
         "no_separate_ec2": no_separate_ec2,
-        "has_eks": any(k in raw_text for k in ["eks", "aks", "kubernetes", "k8s", "pod", "cluster"]) or no_separate_ec2,
+        "has_eks": has_eks,
         "has_opensearch": check_feature_intent(raw_text, ["opensearch", "elasticsearch"], ["no opensearch", "without opensearch"]),
         "has_lambda": check_feature_intent(raw_text, ["lambda", "serverless", "function"], ["no lambda", "no serverless"]),
         "has_sqs": check_feature_intent(raw_text, ["sqs", "servicebus", "service bus", "message queue", "queue"], ["no queue", "no sqs", "without queue"]),
@@ -350,13 +405,17 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
     resources: List[Dict[str, Any]] = []
 
     # 1. Ingress / Load Balancer
-    is_tight_budget = bool(target_budget and target_budget <= 100)
-    alb_monthly = 16.43 if (is_tight_budget or scenario_type == "cost_optimized") else 45.63
-    alb_assumptions = (
-        ["Standard SSL certificate via AWS ACM", "Base ALB ($16.43/mo) with cost-optimized low LCU idle processing"]
-        if (is_tight_budget or scenario_type == "cost_optimized") else
-        ["Standard SSL certificate via AWS ACM", "Average 5 LCU throughput ($29.20/mo) + base ALB ($16.43/mo)"]
-    )
+    budget_tier = sig.get("budget_tier", "starter")
+    if budget_tier == "micro":
+        alb_monthly = 16.43
+        alb_assumptions = ["Standard SSL certificate via AWS ACM", "Base ALB ($16.43/mo) with cost-optimized low LCU idle processing"]
+    elif budget_tier == "starter":
+        alb_monthly = 16.43 if scenario_type == "cost_optimized" else 28.00
+        alb_assumptions = ["Standard SSL certificate via AWS ACM", "ALB sized for small/starter production traffic"]
+    else:
+        alb_monthly = 45.63
+        alb_assumptions = ["Standard SSL certificate via AWS ACM", "Average 5 LCU throughput ($29.20/mo) + base ALB ($16.43/mo)"]
+
     resources.append({
         "id": "aws-alb-1",
         "resource_name": "Application Load Balancer",
@@ -398,8 +457,11 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
             "pricing_source": "AWS Retail Calculator Catalog"
         })
 
-        # EKS Worker Nodes (Sized for 4 pods with 500Mi rest and 2Gi peak processing)
-        if scenario_type == "cost_optimized":
+        # EKS Worker Nodes
+        if budget_tier in ["micro", "starter"]:
+            node_sku = "t3.medium"
+            node_hourly = 0.0416
+        elif scenario_type == "cost_optimized":
             node_sku = "t3.large"
             node_hourly = rate_t3_large
         elif scenario_type == "high_availability":
@@ -433,14 +495,22 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
                 "pricing_source": "AWS Retail Calculator Catalog"
             })
     else:
-        if is_tight_budget:
+        if budget_tier == "micro":
+            app_sku = "t4g.micro" if (target_budget and target_budget <= 50) else "t4g.small"
+            app_qty = 1
+            app_hourly = 0.0084 if app_sku == "t4g.micro" else 0.0168
+        elif budget_tier == "starter":
             app_sku = "t4g.small" if scenario_type == "cost_optimized" else "t4g.medium"
             app_qty = 1 if scenario_type == "cost_optimized" else 2
             app_hourly = 0.0168 if app_sku == "t4g.small" else 0.0336
-        else:
-            app_sku = "t3.large" if concurrent_users > 200 else "t3.medium"
+        elif budget_tier == "standard":
+            app_sku = "t3.medium"
             app_qty = 2
-            app_hourly = rate_t3_large if app_sku == "t3.large" else 0.0416
+            app_hourly = 0.0416
+        else:  # enterprise
+            app_sku = "m6i.large" if scenario_type != "high_availability" else "m6i.xlarge"
+            app_qty = 2 if scenario_type != "high_availability" else 4
+            app_hourly = rate_m6i_large if app_sku == "m6i.large" else rate_m6i_xlarge
         app_cost = round(app_hourly * 730, 2)
         resources.append({
             "id": "aws-app-1",
@@ -451,12 +521,12 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
             "region": aws_region,
             "sku": app_sku,
             "quantity": app_qty,
-            "availability_config": "Multi-AZ (2 Availability Zones)",
+            "availability_config": "Multi-AZ (2 Availability Zones)" if app_qty > 1 else "Single-AZ Burstable",
             "pricing_model": "On-Demand",
             "monthly_cost_usd": round(app_cost * app_qty, 2),
             "annual_cost_usd": round(app_cost * app_qty * 12, 2),
-            "rationale": f"Runs containerized backend workload sized for ~{concurrent_users} concurrent users.",
-            "assumptions": ["Linux OS", "General Purpose SSD gp3 root volume included"],
+            "rationale": f"Runs containerized backend workload sized for ~{concurrent_users} concurrent users ({budget_tier} tier).",
+            "assumptions": [f"{app_qty}x {app_sku} Linux instance", "General Purpose SSD gp3 root volume included"],
             "validation_status": "validated",
             "pricing_source": "AWS Retail Calculator Catalog"
         })
@@ -551,23 +621,27 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
 
     # 3. Database Tier (RDS PostgreSQL)
     if sig["has_rds"]:
-        is_tight_budget = bool(target_budget and target_budget <= 100)
-        is_high_throughput = (sig.get("has_read_replica") or concurrent_users >= 500) and not is_tight_budget
-        if is_tight_budget:
-            db_sku = "db.t4g.micro" if target_budget <= 60 else "db.t4g.small"
+        is_high_throughput = (sig.get("has_read_replica") or concurrent_users >= 500) and budget_tier == "enterprise"
+        if budget_tier == "micro":
+            db_sku = "db.t4g.micro" if (target_budget and target_budget <= 50) else "db.t4g.small"
             db_hourly = 0.017 if db_sku == "db.t4g.micro" else 0.034
-            db_storage_actual = min(max(db_storage_gb, 20), 50)
+            db_storage_actual = min(max(db_storage_gb, 20), 40)
             is_ha = False
-        elif is_high_throughput:
-            db_sku = "db.m6i.xlarge" if scenario_type != "cost_optimized" else "db.m6i.large"
+        elif budget_tier == "starter":
+            db_sku = "db.t4g.small" if scenario_type == "cost_optimized" else "db.t4g.medium"
+            db_hourly = 0.034 if db_sku == "db.t4g.small" else 0.068
+            db_storage_actual = min(max(db_storage_gb, 20), 100)
+            is_ha = scenario_type != "cost_optimized"
+        elif budget_tier == "standard":
+            db_sku = "db.t4g.medium" if scenario_type == "cost_optimized" else "db.t4g.large"
+            db_hourly = 0.068 if db_sku == "db.t4g.medium" else rate_db_t4g_large
+            db_storage_actual = max(db_storage_gb, 100)
+            is_ha = True
+        else:  # enterprise
+            db_sku = "db.m6i.xlarge" if is_high_throughput else "db.m6i.large"
             db_hourly = 0.344 if db_sku == "db.m6i.xlarge" else 0.172
-            db_storage_actual = max(db_storage_gb, 500)
-            is_ha = scenario_type in ["recommended", "high_availability"]
-        else:
-            db_sku = "db.t4g.large" if concurrent_users >= 150 else "db.t4g.medium"
-            db_hourly = rate_db_t4g_large if db_sku == "db.t4g.large" else 0.068
-            db_storage_actual = db_storage_gb
-            is_ha = scenario_type in ["recommended", "high_availability"]
+            db_storage_actual = max(db_storage_gb, 250)
+            is_ha = True
 
         if is_high_throughput:
             db_monthly = 554.76 if is_ha else 147.44
@@ -582,7 +656,7 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
         master_rationale = (
             f"High-throughput primary master database dedicated to 5,000 concurrent write operations with {db_storage_actual} GB gp3 storage."
             if sig.get("has_read_replica") else
-            f"Managed PostgreSQL relational database with {db_storage_actual} GB gp3 storage and automated daily backups."
+            f"Managed PostgreSQL relational database ({db_sku}) with {db_storage_actual} GB gp3 storage and automated daily backups."
         )
 
         resources.append({
@@ -600,16 +674,16 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
             "annual_cost_usd": round(db_monthly * 12, 2),
             "rationale": master_rationale,
             "assumptions": [
-                f"{db_storage_actual} GB gp3 storage ($52.52/mo)",
-                "Synchronous standby replication in 2nd AZ ($502.24/mo compute)" if is_ha else "Single-AZ non-HA",
-                "7-day automated backup retention"
+                f"{db_storage_actual} GB gp3 storage",
+                "Synchronous standby replication in 2nd AZ" if is_ha else "Single-AZ deployment",
+                "Automated backup retention with snapshot recovery"
             ],
             "validation_status": "validated",
             "pricing_source": "AWS Retail Calculator Catalog"
         })
 
         # Add Slave / Read Replica if requested
-        if sig.get("has_read_replica"):
+        if sig.get("has_read_replica") and budget_tier != "micro":
             replica_sku = "db.m6i.large" if scenario_type != "high_availability" else "db.m6i.xlarge"
             replica_monthly = 147.44 if scenario_type != "high_availability" else 554.76
 
@@ -638,17 +712,21 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
 
     # In-Memory Cache (Amazon ElastiCache for Redis)
     if sig.get("has_redis"):
-        is_tight_budget = bool(target_budget and target_budget <= 100)
-        if is_tight_budget:
+        if budget_tier in ["micro", "starter"]:
             redis_sku = "cache.t4g.micro"
             redis_rate = 0.016
             is_ha = False
             redis_qty = 1
-        else:
-            redis_sku = "cache.r6g.large" if concurrent_users >= 1000 else "cache.t4g.medium"
-            redis_rate = 0.068 if "t4g" in redis_sku else 0.174
+        elif budget_tier == "standard":
+            redis_sku = "cache.t4g.medium"
+            redis_rate = 0.068
             is_ha = scenario_type in ["recommended", "high_availability"]
             redis_qty = 2 if is_ha else 1
+        else:  # enterprise
+            redis_sku = "cache.r6g.large"
+            redis_rate = 0.174
+            is_ha = True
+            redis_qty = 2
         redis_monthly = round(redis_rate * 730 * redis_qty, 2)
         resources.append({
             "id": "aws-redis-1",
@@ -881,6 +959,7 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
     aws_region = sig.get("region", "us-east-1")
     azure_region = AZURE_REGION_MAP.get(aws_region, "eastus")
     target_budget = sig.get("target_budget")
+    budget_tier = sig.get("budget_tier", "standard")
 
     resources: List[Dict[str, Any]] = []
 
@@ -952,21 +1031,37 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
                 "pricing_source": "Azure Retail Prices API"
             })
     else:
+        if budget_tier == "micro":
+            vm_sku = "Standard_B1ms"
+            vm_qty = 1
+            vm_cost = 10.22
+        elif budget_tier == "starter":
+            vm_sku = "Standard_B1ms" if scenario_type == "cost_optimized" else "Standard_B2s"
+            vm_qty = 1 if scenario_type == "cost_optimized" else 2
+            vm_cost = 10.22 if vm_sku == "Standard_B1ms" else 35.00
+        elif budget_tier == "standard":
+            vm_sku = "Standard_B2s" if scenario_type == "cost_optimized" else "Standard_D2s_v5"
+            vm_qty = 2
+            vm_cost = 35.00 if vm_sku == "Standard_B2s" else 70.08
+        else:  # enterprise
+            vm_sku = "Standard_D2s_v5" if scenario_type != "high_availability" else "Standard_D4s_v5"
+            vm_qty = 2 if scenario_type != "high_availability" else 4
+            vm_cost = 70.08 if vm_sku == "Standard_D2s_v5" else 140.16
         resources.append({
             "id": "azure-vm-1",
-            "resource_name": "FastAPI VM Instances",
+            "resource_name": "Application Compute VMSS",
             "provider": "azure",
             "service_family": "compute",
             "service_name": "Virtual Machines",
             "region": azure_region,
-            "sku": "D2s_v5",
-            "quantity": 2,
-            "availability_config": "Zone-Redundant (2 Availability Zones)",
+            "sku": vm_sku,
+            "quantity": vm_qty,
+            "availability_config": "Zone-Redundant" if vm_qty > 1 else "Single-Zone Burstable",
             "pricing_model": "Pay-as-you-go",
-            "monthly_cost_usd": 140.16,
-            "annual_cost_usd": 1681.92,
-            "rationale": f"Linux compute nodes configured to handle ~{concurrent_users} concurrent users.",
-            "assumptions": ["Ubuntu Linux LTS", "Premium SSD P10 OS Disk (128 GB) included"],
+            "monthly_cost_usd": round(vm_cost * vm_qty, 2),
+            "annual_cost_usd": round(vm_cost * vm_qty * 12, 2),
+            "rationale": f"Linux compute nodes configured to handle ~{concurrent_users} concurrent users ({budget_tier} tier).",
+            "assumptions": ["Ubuntu Linux LTS", f"{vm_qty}x {vm_sku} compute nodes"],
             "validation_status": "validated",
             "pricing_source": "Azure Retail Prices API"
         })
@@ -1118,16 +1213,24 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
 
     # 3. Database
     if sig["has_rds"]:
-        is_tight_budget = bool(target_budget and target_budget <= 100)
-        is_ha = scenario_type in ["recommended", "high_availability"] and not is_tight_budget
-        is_high_throughput = (sig.get("has_read_replica") or concurrent_users >= 500) and not is_tight_budget
-        if is_tight_budget:
-            db_sku = "B_Gen5_1" if target_budget <= 60 else "B_Gen5_2"
+        if budget_tier == "micro":
+            db_sku = "B_Gen5_1"
+            db_cost = 13.50
+            is_ha = False
+        elif budget_tier == "starter":
+            db_sku = "B_Gen5_1" if scenario_type == "cost_optimized" else "B_Gen5_2"
             db_cost = 13.50 if db_sku == "B_Gen5_1" else 27.00
-        else:
+            is_ha = scenario_type != "cost_optimized"
+        elif budget_tier == "standard":
+            db_sku = "GP_Gen5_2"
+            db_cost = 73.00 if scenario_type == "cost_optimized" else 146.00
+            is_ha = True
+        else:  # enterprise
+            is_high_throughput = sig.get("has_read_replica") or concurrent_users >= 500
             db_sku = "GP_Gen5_4" if is_high_throughput else "GP_Gen5_2"
-            db_cost = (292.00 if is_ha else 146.00) if is_high_throughput else (146.00 if is_ha else 73.00)
-        db_storage_actual = max(db_storage_gb, 500) if is_high_throughput else db_storage_gb
+            db_cost = 292.00 if is_high_throughput else 146.00
+            is_ha = True
+        db_storage_actual = max(db_storage_gb, 500) if budget_tier == "enterprise" else db_storage_gb
 
         master_title = "Azure Database for PostgreSQL Flexible Server (Master Writer)" if sig.get("has_read_replica") else "Azure Database for PostgreSQL Flexible Server"
         resources.append({
@@ -1143,7 +1246,7 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
             "pricing_model": "Pay-as-you-go",
             "monthly_cost_usd": db_cost,
             "annual_cost_usd": round(db_cost * 12, 2),
-            "rationale": f"Master PostgreSQL Flexible Server ({db_sku}) dedicated to 5,000 concurrent write operations and transaction processing.",
+            "rationale": f"Master PostgreSQL Flexible Server ({db_sku}) dedicated to concurrent transaction processing ({budget_tier} tier).",
             "assumptions": [
                 f"{db_storage_actual} GB Premium SSD storage",
                 "Zone-redundant standby instance" if is_ha else "Single-zone primary"
@@ -1152,7 +1255,7 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
             "pricing_source": "Azure Retail Prices API"
         })
 
-        if sig.get("has_read_replica"):
+        if sig.get("has_read_replica") and budget_tier != "micro":
             replica_cost = 146.00 if scenario_type != "high_availability" else 292.00
             resources.append({
                 "id": "azure-db-replica-1",
@@ -1167,7 +1270,7 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
                 "pricing_model": "Pay-as-you-go",
                 "monthly_cost_usd": replica_cost,
                 "annual_cost_usd": round(replica_cost * 12, 2),
-                "rationale": "Dedicated read replica (Slave) handling 5,000 concurrent read operations offloaded from the master.",
+                "rationale": "Dedicated read replica (Slave) handling concurrent read operations offloaded from the master.",
                 "assumptions": [
                     "Asynchronous replication from primary flexible server",
                     "Read-only server endpoint"
@@ -1178,10 +1281,18 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
 
     # In-Memory Cache (Azure Cache for Redis)
     if sig.get("has_redis"):
-        is_tight_budget = bool(target_budget and target_budget <= 100)
-        is_ha = scenario_type in ["recommended", "high_availability"] and not is_tight_budget
-        redis_sku = "Standard_C1" if is_ha else "Basic_C0"
-        redis_monthly = 54.75 if is_ha else 16.06
+        if budget_tier in ["micro", "starter"]:
+            redis_sku = "Basic_C0"
+            redis_monthly = 16.06
+            is_ha = False
+        elif budget_tier == "standard":
+            redis_sku = "Basic_C0" if scenario_type == "cost_optimized" else "Standard_C1"
+            redis_monthly = 16.06 if redis_sku == "Basic_C0" else 54.75
+            is_ha = scenario_type != "cost_optimized"
+        else:
+            redis_sku = "Standard_C1"
+            redis_monthly = 54.75
+            is_ha = True
         resources.append({
             "id": "azure-redis-1",
             "resource_name": "Azure Cache for Redis",
