@@ -142,6 +142,31 @@ def compute_deterministic_ranking(raw_text: str, req: Dict[str, Any]) -> Dict[st
     ]
     no_separate_ec2 = any(k in text for k in ec2_negation_triggers) or is_negated(r"\b(?:ec2|vms|virtual machines|instances)\b", text)
 
+    # Extract target budget
+    target_budget: Optional[float] = None
+    if req.get("budget_usd_month") or req.get("budget"):
+        try:
+            target_budget = float(req.get("budget_usd_month") or req.get("budget"))
+        except (ValueError, TypeError):
+            pass
+    if target_budget is None:
+        budget_patterns = [
+            r"budget[:\s]+(?:of\s+)?(?:\$)?(\d+(?:\.\d+)?)",
+            r"(?:\$)?(\d+(?:\.\d+)?)\s*(?:dollar|usd|\$)?\s*(?:or less\s*)?(?:budget|per month|/mo|a month)",
+            r"budget\s*(?:is|of)?\s*(?:\$)?(\d+(?:\.\d+)?)",
+            r"(?:\$)?(\d+(?:\.\d+)?)\s*(?:dollars?|usd)\s*(?:or less\s*)?budget"
+        ]
+        for bp in budget_patterns:
+            b_m = re.search(bp, text, re.IGNORECASE)
+            if b_m:
+                try:
+                    target_budget = float(b_m.group(1))
+                    break
+                except (ValueError, TypeError):
+                    pass
+
+    is_tight_budget = bool(target_budget and target_budget <= 100)
+
     # 2. Compute Pattern Affinity Scoring
     k8s_negation = is_negated(r"\b(?:kubernetes|k8s|eks|aks)\b", text)
     vm_negation = no_separate_ec2 or is_negated(r"\b(?:vms|virtual machines|ec2|instances)\b", text)
@@ -150,6 +175,9 @@ def compute_deterministic_ranking(raw_text: str, req: Dict[str, Any]) -> Dict[st
     eks_score = 0.3
     if k8s_negation:
         eks_score = 0.05
+    elif is_tight_budget and not any(k in text for k in ["eks", "kubernetes", "k8s"]):
+        # EKS control plane alone costs $73/mo - eliminate for sub-$100 budgets unless explicitly requested
+        eks_score = 0.1
     elif any(k in text for k in eks_positive):
         eks_score += 0.6
         if no_separate_ec2:
@@ -162,12 +190,12 @@ def compute_deterministic_ranking(raw_text: str, req: Dict[str, Any]) -> Dict[st
     elif any(k in text for k in ["ec2", "instances", "virtual machines", "vms", "asg"]):
         ec2_score += 0.4
 
-    fargate_score = 0.25
-    lambda_score = 0.2
+    fargate_score = 0.35 if is_tight_budget else 0.25
+    lambda_score = 0.3 if is_tight_budget else 0.2
     if any(k in text for k in ["serverless", "event-driven", "faas"]):
         fargate_score += 0.4
         lambda_score += 0.6
-    if any(k in text for k in ["fargate", "container apps", "serverless container"]):
+    if any(k in text for k in ["fargate", "container apps", "serverless container", "app runner"]):
         fargate_score += 0.5
     if any(k in text for k in ["lambda", "serverless function", "functions"]):
         lambda_score += 0.6
@@ -258,12 +286,24 @@ def compute_deterministic_ranking(raw_text: str, req: Dict[str, Any]) -> Dict[st
             secrets_count = 5
 
     has_secrets = bool(sec_match) or any(k in text for k in ["secrets manager", "secret manager", "secrets", "secret", "key vault"])
-    has_airflow = any(k in text for k in ["airflow", "mwaa", "managed airflow", "dag", "dags", "apache airflow"])
+    # Airflow/MWAA: require explicit Airflow intent; topology or architecture DAGs must NEVER trigger MWAA ($358/mo)
+    explicit_airflow = any(k in text for k in ["airflow", "mwaa", "managed airflow", "apache airflow", "airflow dag", "airflow dags"])
+    has_airflow = explicit_airflow and not (is_tight_budget and "airflow" not in text and "mwaa" not in text)
+    if is_tight_budget and has_airflow and not any(k in text for k in ["airflow", "mwaa"]):
+        has_airflow = False
+
     has_s3 = any(k in text for k in ["s3", "bucket", "blob", "upload", "uploads", "video", "videos", "2 gb", "2gb", "docx", "pptx"])
-    has_redis = any(k in text for k in ["redis", "cache", "caching", "elasticache", "session cache"])
+    # Redis: require explicit Redis or dedicated cache store intent; bare generic "cache" or "caching" must NOT trigger dedicated ElastiCache ($15-$35/mo)
+    explicit_redis = any(k in text for k in ["redis", "elasticache", "valkey", "memorydb", "memcached", "azure redis", "redis cluster"])
+    has_redis = explicit_redis
+    if is_tight_budget and not any(k in text for k in ["redis", "elasticache"]):
+        has_redis = False
+
     has_large_video_uploads = any(k in text for k in ["video", "videos", "2 gb", "2gb", "docx", "pptx", "large file", "upto 2 gb", "up to 2 gb"])
 
     constraints = []
+    if is_tight_budget:
+        constraints.append(f"Budget Constraint: Workload budget capped at ${target_budget:.0f}/mo; prioritizing serverless and burstable tiers, eliminating high-idle enterprise orchestrators.")
     if no_separate_ec2:
         constraints.append("Negative Constraint: Do not deploy standalone EC2 instances; run compute exclusively on EKS worker nodes.")
     if has_master_slave:
@@ -289,6 +329,7 @@ def compute_deterministic_ranking(raw_text: str, req: Dict[str, Any]) -> Dict[st
             "has_s3": has_s3,
             "has_redis": has_redis,
             "has_large_video_uploads": has_large_video_uploads,
+            "target_budget": target_budget,
             "target_region": req.get("region") or "us-east-1"
         },
         "key_constraints": constraints,

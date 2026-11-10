@@ -63,12 +63,20 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         except (ValueError, TypeError):
             pass
     if target_budget is None:
-        budget_match = re.search(r"budget[:\s]+(?:\$)?(\d+(?:\.\d+)?)", raw_text) or re.search(r"(?:\$)?(\d+(?:\.\d+)?)\s*(?:budget|per month|/mo|a month)", raw_text)
-        if budget_match:
-            try:
-                target_budget = float(budget_match.group(1))
-            except (ValueError, TypeError):
-                pass
+        budget_patterns = [
+            r"budget[:\s]+(?:of\s+)?(?:\$)?(\d+(?:\.\d+)?)",
+            r"(?:\$)?(\d+(?:\.\d+)?)\s*(?:dollar|usd|\$)?\s*(?:or less\s*)?(?:budget|per month|/mo|a month)",
+            r"budget\s*(?:is|of)?\s*(?:\$)?(\d+(?:\.\d+)?)",
+            r"(?:\$)?(\d+(?:\.\d+)?)\s*(?:dollars?|usd)\s*(?:or less\s*)?budget"
+        ]
+        for bp in budget_patterns:
+            b_m = re.search(bp, raw_text, re.IGNORECASE)
+            if b_m:
+                try:
+                    target_budget = float(b_m.group(1))
+                    break
+                except (ValueError, TypeError):
+                    pass
 
     # 1. Check explicit region parameter first
     region = "us-east-1"
@@ -130,15 +138,18 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
     has_s3 = check_feature_intent(raw_text, s3_pos, s3_neg) or bool(req.get("has_s3"))
 
     # In-Memory Cache (Redis / ElastiCache / Azure Redis)
+    # Require explicit Redis/cache cluster keywords; bare "cache" or "caching" must NOT trigger dedicated ElastiCache ($15-$35/mo)
     redis_pos = [
-        "redis", "cache", "caching", "elasticache", "valkey", "memorydb",
-        "in-memory", "memcached", "azure redis", "session cache"
+        "redis", "elasticache", "valkey", "memorydb",
+        "memcached", "azure redis", "redis cluster"
     ]
     redis_neg = [
         "no cache", "no redis", "without cache", "without redis",
         "no caching", "don't need cache", "dont need redis"
     ]
     has_redis = check_feature_intent(raw_text, redis_pos, redis_neg) or bool(req.get("has_redis"))
+    if target_budget and target_budget <= 100 and not any(k in raw_text for k in ["redis", "elasticache"]):
+        has_redis = False
 
     # Relational Database (RDS / PostgreSQL / MySQL)
     rds_pos = [
@@ -151,17 +162,19 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
         "no database", "no rds", "without database", "without rds",
         "no db", "without db", "no sql", "don't need db", "dont need database"
     ]
-    has_rds = check_feature_intent(raw_text, rds_pos, rds_neg) or bool(req.get("has_rds")) or ("db_engine" in req and req["db_engine"] and str(req["db_engine"]).lower() != "none")
+    has_rds = check_feature_intent(raw_text, rds_pos, rds_neg) or bool(req.get("has_rds")) or bool(req.get("db_storage_gb")) or ("db_engine" in req and req["db_engine"] and str(req["db_engine"]).lower() != "none")
 
-    # Airflow / MWAA / Orchestration (requires explicit Airflow/DAG intent; container orchestration should never trigger MWAA)
+    # Airflow / MWAA / Orchestration (requires explicit Airflow/MWAA intent; topology DAGs must never trigger MWAA)
     airflow_pos = [
-        "airflow", "mwaa", "managed airflow", "dag", "dags", "apache airflow",
-        "airflow dag", "airflow dags", "workflow orchestration dag"
+        "airflow", "mwaa", "managed airflow", "apache airflow",
+        "airflow dag", "airflow dags"
     ]
     airflow_neg = [
         "no airflow", "without airflow", "no mwaa", "no dags", "without dags"
     ]
     has_airflow = check_feature_intent(raw_text, airflow_pos, airflow_neg) or bool(req.get("has_airflow"))
+    if target_budget and target_budget <= 100 and not any(k in raw_text for k in ["airflow", "mwaa"]):
+        has_airflow = False
 
     # Master-Slave / Read Replica DB Architecture
     replica_pos = [
@@ -322,6 +335,7 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
     db_storage_gb = _get_int_val(req.get("db_storage_gb"), 100)
     sig = parse_workload_signals(req)
     aws_region = sig.get("region", "us-east-1")
+    target_budget = sig.get("target_budget")
 
     # Accurate regional rates
     is_mumbai = aws_region == "ap-south-1"
@@ -336,6 +350,13 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
     resources: List[Dict[str, Any]] = []
 
     # 1. Ingress / Load Balancer
+    is_tight_budget = bool(target_budget and target_budget <= 100)
+    alb_monthly = 16.43 if (is_tight_budget or scenario_type == "cost_optimized") else 45.63
+    alb_assumptions = (
+        ["Standard SSL certificate via AWS ACM", "Base ALB ($16.43/mo) with cost-optimized low LCU idle processing"]
+        if (is_tight_budget or scenario_type == "cost_optimized") else
+        ["Standard SSL certificate via AWS ACM", "Average 5 LCU throughput ($29.20/mo) + base ALB ($16.43/mo)"]
+    )
     resources.append({
         "id": "aws-alb-1",
         "resource_name": "Application Load Balancer",
@@ -347,10 +368,10 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
         "quantity": 1,
         "availability_config": "Cross-zone load balancing",
         "pricing_model": "On-Demand",
-        "monthly_cost_usd": 45.63,
-        "annual_cost_usd": 547.56,
-        "rationale": "Ingress routing and TLS termination into Kubernetes ingress controller and API services (1 ALB + 5 LCU throughput processing).",
-        "assumptions": ["Standard SSL certificate via AWS ACM", "Average 5 LCU throughput ($29.20/mo) + base ALB ($16.43/mo)"],
+        "monthly_cost_usd": alb_monthly,
+        "annual_cost_usd": round(alb_monthly * 12, 2),
+        "rationale": "Ingress routing and TLS termination into Kubernetes ingress controller and API services.",
+        "assumptions": alb_assumptions,
         "validation_status": "validated",
         "pricing_source": "AWS Retail Calculator Catalog"
     })
@@ -412,9 +433,14 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
                 "pricing_source": "AWS Retail Calculator Catalog"
             })
     else:
-        app_sku = "t3.large" if concurrent_users > 200 else "t3.medium"
-        app_qty = 2
-        app_hourly = rate_t3_large if app_sku == "t3.large" else 0.0416
+        if is_tight_budget:
+            app_sku = "t4g.small" if scenario_type == "cost_optimized" else "t4g.medium"
+            app_qty = 1 if scenario_type == "cost_optimized" else 2
+            app_hourly = 0.0168 if app_sku == "t4g.small" else 0.0336
+        else:
+            app_sku = "t3.large" if concurrent_users > 200 else "t3.medium"
+            app_qty = 2
+            app_hourly = rate_t3_large if app_sku == "t3.large" else 0.0416
         app_cost = round(app_hourly * 730, 2)
         resources.append({
             "id": "aws-app-1",
@@ -525,17 +551,24 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
 
     # 3. Database Tier (RDS PostgreSQL)
     if sig["has_rds"]:
-        is_high_throughput = sig.get("has_read_replica") or concurrent_users >= 500
-        if is_high_throughput:
+        is_tight_budget = bool(target_budget and target_budget <= 100)
+        is_high_throughput = (sig.get("has_read_replica") or concurrent_users >= 500) and not is_tight_budget
+        if is_tight_budget:
+            db_sku = "db.t4g.micro" if target_budget <= 60 else "db.t4g.small"
+            db_hourly = 0.017 if db_sku == "db.t4g.micro" else 0.034
+            db_storage_actual = min(max(db_storage_gb, 20), 50)
+            is_ha = False
+        elif is_high_throughput:
             db_sku = "db.m6i.xlarge" if scenario_type != "cost_optimized" else "db.m6i.large"
             db_hourly = 0.344 if db_sku == "db.m6i.xlarge" else 0.172
             db_storage_actual = max(db_storage_gb, 500)
+            is_ha = scenario_type in ["recommended", "high_availability"]
         else:
             db_sku = "db.t4g.large" if concurrent_users >= 150 else "db.t4g.medium"
             db_hourly = rate_db_t4g_large if db_sku == "db.t4g.large" else 0.068
             db_storage_actual = db_storage_gb
+            is_ha = scenario_type in ["recommended", "high_availability"]
 
-        is_ha = scenario_type in ["recommended", "high_availability"]
         if is_high_throughput:
             db_monthly = 554.76 if is_ha else 147.44
         else:
@@ -605,10 +638,17 @@ def size_aws_workload(req: Dict[str, Any], scenario_type: str = "recommended") -
 
     # In-Memory Cache (Amazon ElastiCache for Redis)
     if sig.get("has_redis"):
-        redis_sku = "cache.r6g.large" if concurrent_users >= 1000 else "cache.t4g.medium"
-        redis_rate = 0.068 if "t4g" in redis_sku else 0.174
-        is_ha = scenario_type in ["recommended", "high_availability"]
-        redis_qty = 2 if is_ha else 1
+        is_tight_budget = bool(target_budget and target_budget <= 100)
+        if is_tight_budget:
+            redis_sku = "cache.t4g.micro"
+            redis_rate = 0.016
+            is_ha = False
+            redis_qty = 1
+        else:
+            redis_sku = "cache.r6g.large" if concurrent_users >= 1000 else "cache.t4g.medium"
+            redis_rate = 0.068 if "t4g" in redis_sku else 0.174
+            is_ha = scenario_type in ["recommended", "high_availability"]
+            redis_qty = 2 if is_ha else 1
         redis_monthly = round(redis_rate * 730 * redis_qty, 2)
         resources.append({
             "id": "aws-redis-1",
@@ -840,6 +880,7 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
     sig = parse_workload_signals(req)
     aws_region = sig.get("region", "us-east-1")
     azure_region = AZURE_REGION_MAP.get(aws_region, "eastus")
+    target_budget = sig.get("target_budget")
 
     resources: List[Dict[str, Any]] = []
 
@@ -1077,10 +1118,15 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
 
     # 3. Database
     if sig["has_rds"]:
-        is_ha = scenario_type in ["recommended", "high_availability"]
-        is_high_throughput = sig.get("has_read_replica") or concurrent_users >= 500
-        db_sku = "GP_Gen5_4" if is_high_throughput else "GP_Gen5_2"
-        db_cost = (292.00 if is_ha else 146.00) if is_high_throughput else (146.00 if is_ha else 73.00)
+        is_tight_budget = bool(target_budget and target_budget <= 100)
+        is_ha = scenario_type in ["recommended", "high_availability"] and not is_tight_budget
+        is_high_throughput = (sig.get("has_read_replica") or concurrent_users >= 500) and not is_tight_budget
+        if is_tight_budget:
+            db_sku = "B_Gen5_1" if target_budget <= 60 else "B_Gen5_2"
+            db_cost = 13.50 if db_sku == "B_Gen5_1" else 27.00
+        else:
+            db_sku = "GP_Gen5_4" if is_high_throughput else "GP_Gen5_2"
+            db_cost = (292.00 if is_ha else 146.00) if is_high_throughput else (146.00 if is_ha else 73.00)
         db_storage_actual = max(db_storage_gb, 500) if is_high_throughput else db_storage_gb
 
         master_title = "Azure Database for PostgreSQL Flexible Server (Master Writer)" if sig.get("has_read_replica") else "Azure Database for PostgreSQL Flexible Server"
@@ -1132,7 +1178,8 @@ def size_azure_workload(req: Dict[str, Any], scenario_type: str = "recommended")
 
     # In-Memory Cache (Azure Cache for Redis)
     if sig.get("has_redis"):
-        is_ha = scenario_type in ["recommended", "high_availability"]
+        is_tight_budget = bool(target_budget and target_budget <= 100)
+        is_ha = scenario_type in ["recommended", "high_availability"] and not is_tight_budget
         redis_sku = "Standard_C1" if is_ha else "Basic_C0"
         redis_monthly = 54.75 if is_ha else 16.06
         resources.append({
