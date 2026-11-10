@@ -38,8 +38,16 @@ import {
   FileCode,
   ArrowRight,
   Server,
-  Download
+  Download,
+  Image,
+  FileText,
+  ChevronDown
 } from 'lucide-react'
+import {
+  downloadCanvasAsPng,
+  downloadCanvasAsSvg,
+  downloadAsDrawio,
+} from '@/lib/diagram-export'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -296,6 +304,7 @@ export function ApiGraphCanvas({
   projectName,
   methodsBreakdown,
 }: ApiGraphCanvasProps) {
+  const containerRef = React.useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
@@ -305,6 +314,49 @@ export function ApiGraphCanvas({
   const [isSimulatingTraffic, setIsSimulatingTraffic] = useState(true)
   const [activeEndpoint, setActiveEndpoint] = useState<any | null>(endpoints[0] || null)
   const [copiedCurl, setCopiedCurl] = useState(false)
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+
+  const handleExportPng = async () => {
+    if (!containerRef.current) return
+    setIsExporting(true)
+    setIsExportMenuOpen(false)
+    try {
+      const cleanName = (projectName || 'api-topology').toLowerCase().replace(/\s+/g, '-')
+      await downloadCanvasAsPng(containerRef.current, `${cleanName}-api-topology.png`)
+      toast.success('High-resolution API graph PNG exported!')
+    } catch (err) {
+      toast.error('Failed to export PNG image')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleExportSvg = async () => {
+    if (!containerRef.current) return
+    setIsExporting(true)
+    setIsExportMenuOpen(false)
+    try {
+      const cleanName = (projectName || 'api-topology').toLowerCase().replace(/\s+/g, '-')
+      await downloadCanvasAsSvg(containerRef.current, `${cleanName}-api-topology.svg`)
+      toast.success('Vector SVG exported (editable in Figma & Illustrator)!')
+    } catch (err) {
+      toast.error('Failed to export SVG')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleExportDrawio = () => {
+    setIsExportMenuOpen(false)
+    try {
+      const cleanName = (projectName || 'api-topology').toLowerCase().replace(/\s+/g, '-')
+      downloadAsDrawio(nodes, edges, `${projectName || 'API'} Route Topology`, `${cleanName}-api-diagram.drawio`)
+      toast.success('Draw.io diagram exported! Open and edit in app.diagrams.net')
+    } catch (err) {
+      toast.error('Failed to export Draw.io file')
+    }
+  }
 
   // Filter nodes & edges based on search and method
   const filteredNodes = useMemo(() => {
@@ -397,7 +449,7 @@ export function ApiGraphCanvas({
   return (
     <div className="flex h-[calc(100vh-8.5rem)] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50/50 shadow-sm">
       {/* Canvas Area */}
-      <div className="relative flex-1 h-full">
+      <div ref={containerRef} className="relative flex-1 h-full">
         {/* Top Control Bar */}
         <div className="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200/80 bg-white/95 p-2 backdrop-blur-md shadow-xs">
           <div className="flex items-center gap-2">
@@ -465,15 +517,80 @@ export function ApiGraphCanvas({
               Fit View
             </Button>
 
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleExportOpenApi}
-              className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-            >
-              <Download className="h-3.5 w-3.5" />
-              OpenAPI JSON
-            </Button>
+            {/* Export Menu Dropdown */}
+            <div className="relative">
+              <Button
+                size="sm"
+                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                disabled={isExporting}
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 px-3 cursor-pointer shadow-xs"
+              >
+                <Download className={`h-3.5 w-3.5 ${isExporting ? 'animate-bounce' : ''}`} />
+                <span>Export Graph</span>
+                <ChevronDown className="h-3 w-3 opacity-70" />
+              </Button>
+
+              {isExportMenuOpen && (
+                <div
+                  data-export-ignore="true"
+                  className="absolute right-0 top-10 w-64 bg-white rounded-xl border border-slate-200 shadow-xl py-1.5 z-50 text-xs animate-in fade-in-50 duration-100"
+                >
+                  <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                    Export API Topology
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleExportPng}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
+                  >
+                    <Image className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <div>
+                      <span className="font-semibold block text-slate-900">PNG Image</span>
+                      <span className="text-[10px] text-slate-400">High-res raster for docs & slides</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExportSvg}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
+                  >
+                    <FileCode className="h-4 w-4 text-blue-600 shrink-0" />
+                    <div>
+                      <span className="font-semibold block text-slate-900">SVG Vector</span>
+                      <span className="text-[10px] text-slate-400">Editable in Figma & Illustrator</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExportDrawio}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
+                  >
+                    <FileText className="h-4 w-4 text-amber-500 shrink-0" />
+                    <div>
+                      <span className="font-semibold block text-slate-900">Draw.io (.drawio)</span>
+                      <span className="text-[10px] text-slate-400">Open & edit in app.diagrams.net</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportMenuOpen(false)
+                      handleExportOpenApi()
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer border-t border-slate-100 mt-1"
+                  >
+                    <Layers className="h-4 w-4 text-purple-600 shrink-0" />
+                    <div>
+                      <span className="font-semibold block text-slate-900">OpenAPI 3.0 JSON</span>
+                      <span className="text-[10px] text-slate-400">Standard REST API schema</span>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

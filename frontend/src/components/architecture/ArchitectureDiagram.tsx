@@ -156,68 +156,82 @@ function ServiceNodeComponent({ data, selected }: NodeProps) {
     }
   }
 
+  const formatRegionBadge = (reg?: string) => {
+    if (!reg) return 'us-east-1'
+    const lower = reg.toLowerCase()
+    if (lower.includes('multi-region') || lower.includes('unspecified') || lower.includes('active-active')) {
+      return 'Multi-Region (HA)'
+    }
+    if (lower.includes('centralindia')) return 'centralindia'
+    if (reg.length > 18) return 'Global Multi-AZ'
+    return reg
+  }
+
   return (
     <div
-      className={`group relative min-w-[205px] max-w-[250px] rounded-xl border-2 p-3 shadow-xs transition-all duration-150 select-none cursor-grab active:cursor-grabbing ${getBorderColor()}`}
+      className={`group relative w-[280px] sm:w-[300px] rounded-xl border-2 p-3.5 shadow-xs transition-all duration-150 select-none cursor-grab active:cursor-grabbing ${getBorderColor()}`}
     >
       {/* Clean single handles - hidden until hover to eliminate cluttered dots */}
       <Handle
         type="target"
         position={Position.Top}
         id="top"
-        className="!w-2 !h-2 !bg-blue-600 !border !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
+        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
-        className="!w-2 !h-2 !bg-blue-600 !border !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
+        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
       />
       <Handle
         type="target"
         position={Position.Left}
         id="left"
-        className="!w-2 !h-2 !bg-blue-600 !border !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
+        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="right"
-        className="!w-2 !h-2 !bg-blue-600 !border !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
+        className="!w-2.5 !h-2.5 !bg-blue-600 !border-2 !border-white !rounded-full opacity-0 group-hover:opacity-100 hover:!scale-125 transition-all cursor-crosshair"
       />
 
       {/* Node Header with Icon and Name */}
-      <div className="flex items-center justify-between gap-1.5 mb-1.5">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="rounded-lg bg-white p-1.5 shadow-2xs border border-slate-200 shrink-0">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-start gap-2 min-w-0">
+          <div className="rounded-lg bg-white p-1.5 shadow-2xs border border-slate-200 shrink-0 mt-0.5">
             {getFamilyIcon()}
           </div>
-          <div className="text-xs font-bold text-slate-900 truncate" title={data.name}>
-            {data.name}
+          <div>
+            <h4 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2" title={data.name}>
+              {data.name}
+            </h4>
+            <span className="text-[10px] text-slate-400 font-mono block mt-0.5">{data.service_name}</span>
           </div>
         </div>
 
         {/* Active Node Indicator */}
-        <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+        <span className="flex h-2 w-2 rounded-full bg-emerald-500 shrink-0 mt-1" title="Active Healthy Component" />
       </div>
 
-      {/* Cloud Service SKU & Region */}
-      <div className="flex items-center justify-between text-[11px] font-medium text-slate-600 mb-1.5">
-        <span className="truncate pr-1 text-slate-700 font-semibold">{data.service_name}</span>
-        {data.region && (
-          <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
-            {data.region}
-          </span>
-        )}
+      {/* Cloud Service SKU & Clean Region Badge */}
+      <div className="flex items-center justify-between text-[11px] mb-2">
+        <span className="capitalize text-[10px] font-semibold text-slate-500 tracking-wider">
+          {data.service_family || 'Service'}
+        </span>
+        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+          {formatRegionBadge(data.region)}
+        </span>
       </div>
 
       {/* Estimated Cost Badge & Purpose */}
-      <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100">
-        <span className="text-[10px] text-slate-500 line-clamp-1 flex-1 pr-1" title={data.purpose}>
+      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60">
+        <span className="text-[11px] text-slate-500 line-clamp-1 flex-1 pr-1" title={data.purpose}>
           {data.purpose}
         </span>
         {data.monthly_cost !== undefined && data.monthly_cost !== null && (
-          <Badge className="text-[9px] font-bold bg-slate-900 text-white shrink-0 px-1.5 py-0.2">
+          <Badge className="text-[10px] font-bold bg-slate-900 text-white shrink-0 px-2 py-0.5">
             ${Number(data.monthly_cost).toFixed(0)}/mo
           </Badge>
         )}
@@ -371,9 +385,9 @@ export function ArchitectureDiagram({
       }
     })
 
-    const nodeWidth = 220
-    const xGap = 40
-    const canvasCenterX = 450
+    const nodeWidth = 310
+    const xGap = 50
+    const canvasCenterX = 550
 
     const layoutTier = (tierNodes: Node[], y: number) => {
       const totalWidth = tierNodes.length * nodeWidth + Math.max(0, tierNodes.length - 1) * xGap

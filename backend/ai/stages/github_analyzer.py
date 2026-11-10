@@ -230,75 +230,108 @@ def generate_deterministic_infrastructure_blueprint(
 ) -> Tuple[str, str, List[str], List[str], Dict[str, float]]:
     """
     Creates tailored cloud architecture suggestions, recommended AWS/Azure services,
-    and a ready-to-run natural language project prompt.
+    and a highly specific, tailored natural language project prompt aligned with the
+    actual codebase stack and detected databases.
     """
-    comp_names = [f.name for f in findings]
-    has_k8s = any("kubernetes" in n.lower() for n in comp_names)
-    has_docker = any("docker" in n.lower() for n in comp_names)
-    has_db = any(f.category == "database" for f in findings)
-    has_cache = any(f.category == "cache" for f in findings)
-    has_queue = any(f.category == "queue" for f in findings)
-    has_storage = any(f.category == "storage" for f in findings)
-    has_frontend = any(f.category == "framework" for f in findings)
+    comp_names = [f.name.lower() for f in findings]
+    has_k8s = any("kubernetes" in n for n in comp_names)
+    has_docker = any("docker" in n for n in comp_names)
+
+    # Specific database detection
+    is_mongo = any("mongo" in n for n in comp_names)
+    is_mysql = any("mysql" in n for n in comp_names)
+    is_postgres = any("postgres" in n for n in comp_names)
+    has_db = is_mongo or is_mysql or is_postgres or any(f.category == "database" for f in findings)
+
+    has_cache = any(f.category == "cache" for f in findings) or any("redis" in n or "memcached" in n for n in comp_names)
+    has_queue = any(f.category == "queue" for f in findings) or any("celery" in n or "sqs" in n or "rabbitmq" in n for n in comp_names)
+    has_storage = any(f.category == "storage" for f in findings) or any("s3" in n or "upload" in n for n in comp_names)
+    has_frontend = any(f.category == "framework" for f in findings) or any("react" in n or "next" in n or "vue" in n for n in comp_names)
+
+    # Human-readable title
+    clean_title = repo_name.replace("-", " ").replace("_", " ").title()
 
     # Scale parameters
     if traffic_scale == "small":
-        user_concurrency = "50-100 concurrent users"
-        ha_text = "Single-AZ burstable deployment (cost-optimized for staging/MVP)"
-        db_tier = "db.t4g.small (AWS) / Standard_B1ms (Azure)"
-        cost_range = {"min": 50.0, "max": 140.0}
+        user_concurrency = "50–150 concurrent users"
+        ha_text = "Single-AZ cost-optimized container instance with automated health restarts"
+        db_tier_desc = "Shared burstable cluster (cost-optimized for staging/MVP)"
+        cost_range = {"min": 45.0, "max": 120.0}
     elif traffic_scale == "high":
-        user_concurrency = "2,000-5,000 concurrent users"
-        ha_text = "Multi-AZ high availability across 3 Availability Zones with automated horizontal pod autoscaling"
-        db_tier = "db.r7g.xlarge Multi-AZ with Read Replica (AWS) / Azure Flexible Server GP 4 vCores (Azure)"
-        cost_range = {"min": 550.0, "max": 1400.0}
+        user_concurrency = "2,000–5,000 concurrent users"
+        ha_text = "Multi-AZ high availability across 3 Availability Zones with horizontal pod autoscaling"
+        db_tier_desc = "Dedicated high-memory cluster with provisioned IOPS and automated read replica"
+        cost_range = {"min": 450.0, "max": 1200.0}
     elif traffic_scale == "enterprise":
         user_concurrency = "10,000+ concurrent users"
-        ha_text = "Enterprise Multi-Region active-active failover with Karpenter autoscaling and dedicated Redis Cluster"
-        db_tier = "Amazon Aurora Serverless v2 PostgreSQL / Azure Cosmos DB + Managed SQL"
-        cost_range = {"min": 1200.0, "max": 3500.0}
+        ha_text = "Multi-Region active-active failover with automated latency routing and dedicated cluster"
+        db_tier_desc = "Enterprise managed cluster with multi-region replication and automated 35-day backup retention"
+        cost_range = {"min": 1100.0, "max": 3200.0}
     else:  # medium (default)
-        user_concurrency = "250-500 concurrent users"
-        ha_text = "Multi-AZ deployment across 2 Availability Zones with 99.9% availability SLA"
-        db_tier = "db.t4g.large Multi-AZ (AWS) / Standard_D2ds_v5 (Azure)"
-        cost_range = {"min": 180.0, "max": 420.0}
+        user_concurrency = "250–600 concurrent users"
+        ha_text = "Multi-AZ deployment across 2 Availability Zones with 99.9% uptime SLA"
+        db_tier_desc = "Production-grade managed cluster with automated daily snapshots and 7-day retention"
+        cost_range = {"min": 140.0, "max": 380.0}
 
     # Recommended AWS Services
     aws_services = []
     if has_k8s or (has_docker and traffic_scale in ["high", "enterprise"]):
         aws_services.extend(["Amazon EKS", "Amazon ECR", "AWS Application Load Balancer"])
+        compute_spec = "Amazon EKS Cluster with Linux worker nodes"
     elif has_docker:
         aws_services.extend(["Amazon ECS (Fargate)", "Amazon ECR", "AWS Application Load Balancer"])
+        compute_spec = "Amazon ECS (Fargate) serverless containers with ALB"
     else:
         aws_services.extend(["AWS App Runner", "Amazon CloudWatch"])
+        compute_spec = "AWS App Runner containerized service"
 
     if has_frontend:
-        aws_services.extend(["Amazon CloudFront (CDN)", "Amazon S3 (Static Web Hosting)"])
+        aws_services.extend(["Amazon CloudFront (CDN)", "Amazon S3 (SPA Static Hosting)"])
 
-    if has_db:
+    if is_mongo:
+        aws_services.append("MongoDB Atlas on AWS (M10/M20 Cluster) or Amazon DocumentDB")
+        db_spec = f"MongoDB (MongoDB Atlas or Amazon DocumentDB) - {db_tier_desc}"
+    elif is_mysql:
+        aws_services.append("Amazon RDS MySQL (Multi-AZ)")
+        db_spec = f"MySQL (Amazon RDS MySQL Multi-AZ) - {db_tier_desc}"
+    elif is_postgres:
         aws_services.append("Amazon RDS PostgreSQL (Multi-AZ)")
+        db_spec = f"PostgreSQL (Amazon RDS PostgreSQL Multi-AZ) - {db_tier_desc}"
+    elif has_db:
+        aws_services.append("Amazon RDS Database Cluster")
+        db_spec = f"Managed Database - {db_tier_desc}"
+    else:
+        db_spec = "Lightweight database or external datastore"
+
     if has_cache:
-        aws_services.append("Amazon ElastiCache for Redis")
+        aws_services.append("Amazon ElastiCache for Redis (Cache & Session Store)")
     if has_queue:
-        aws_services.append("Amazon SQS (Simple Queue Service)")
+        aws_services.append("Amazon SQS (Decoupled Task Buffer)")
     if has_storage:
         aws_services.append("Amazon S3 (Encrypted Object Storage with Lifecycle)")
-    aws_services.extend(["AWS Secrets Manager", "Amazon CloudWatch Container Insights"])
+    aws_services.extend(["AWS Secrets Manager", "Amazon CloudWatch"])
 
     # Recommended Azure Services
     azure_services = []
     if has_k8s or (has_docker and traffic_scale in ["high", "enterprise"]):
         azure_services.extend(["Azure Kubernetes Service (AKS)", "Azure Container Registry (ACR)", "Azure Application Gateway"])
     elif has_docker:
-        azure_services.extend(["Azure Container Apps", "Azure Container Registry (ACR)", "Azure Load Balancer"])
+        azure_services.extend(["Azure Container Apps", "Azure Container Registry (ACR)", "Azure Application Gateway"])
     else:
         azure_services.extend(["Azure App Service (Linux)", "Azure Monitor"])
 
     if has_frontend:
         azure_services.extend(["Azure Static Web Apps", "Azure Front Door (CDN)"])
 
-    if has_db:
+    if is_mongo:
+        azure_services.append("Azure Cosmos DB (MongoDB API) or MongoDB Atlas on Azure")
+    elif is_mysql:
+        azure_services.append("Azure Database for MySQL (Flexible Server)")
+    elif is_postgres:
         azure_services.append("Azure Database for PostgreSQL (Flexible Server)")
+    elif has_db:
+        azure_services.append("Azure Managed Database")
+
     if has_cache:
         azure_services.append("Azure Cache for Redis (Standard)")
     if has_queue:
@@ -308,22 +341,25 @@ def generate_deterministic_infrastructure_blueprint(
     azure_services.extend(["Azure Key Vault", "Azure Log Analytics"])
 
     # Compose synthesis prompt
-    components_summary = []
+    detected_bullets = []
     for f in findings:
-        components_summary.append(f"- **{f.name}** ({f.category}): {f.detail}")
-    comp_list_text = "\n".join(components_summary) if components_summary else "- Containerized microservice application"
+        detected_bullets.append(f"- **{f.name}** ({f.category}): {f.detail}")
+    comp_list_text = "\n".join(detected_bullets) if detected_bullets else "- Containerized microservice application"
 
-    desc_line = f" ({description})" if description else ""
+    desc_line = f" ({description.strip()})" if description else ""
     prompt = (
         f"Production cloud architecture and sizing for repository '{owner}/{repo_name}'{desc_line}.\n\n"
-        f"Key Application Stack & Components:\n"
-        f"{comp_list_text}\n\n"
+        f"Application Overview & Detected Stack:\n"
+        f"- Target Workload: {clean_title} built with {primary_language}\n"
+        f"- Compute Tier: {compute_spec}\n"
+        f"- Database Tier: {db_spec}\n"
+        f"- Caching & State: {'Redis in-memory tier for low-latency session and query offload' if has_cache else 'Stateless architecture with edge caching'}\n"
+        f"- Component Findings:\n{comp_list_text}\n\n"
         f"Workload Requirements & Constraints:\n"
         f"- Target Concurrency: {user_concurrency}\n"
-        f"- High Availability Posture: {ha_text}\n"
-        f"- Database Sizing: {db_tier} with automated daily backups and 7-day retention\n"
-        f"- Storage & Caching: Persistent object storage with encryption at rest, low-latency in-memory cache\n"
-        f"- Observability: Centralized metrics, log aggregation, and single-point-of-failure alerts\n\n"
+        f"- High Availability: {ha_text}\n"
+        f"- Storage & Assets: Persistent object storage with encryption at rest\n"
+        f"- Observability: Centralized metrics, log aggregation, and single-point-of-failure health checks\n\n"
         f"Recommend optimized infrastructure topology for both AWS and Azure, calculate monthly and annual line-item estimates, "
         f"and provide FinOps recommendations to eliminate idle waste."
     )
