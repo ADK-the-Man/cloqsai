@@ -450,8 +450,11 @@ export function ApiGraphCanvas({
     <div className="flex h-[calc(100vh-8.5rem)] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50/50 shadow-sm">
       {/* Canvas Area */}
       <div ref={containerRef} className="relative flex-1 h-full">
-        {/* Top Control Bar */}
-        <div className="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200/80 bg-white/95 p-2 backdrop-blur-md shadow-xs">
+        {/* Top Control Bar - Ignored on Image/SVG Export */}
+        <div
+          data-export-ignore="true"
+          className="export-ignore absolute top-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200/80 bg-white/95 p-2 backdrop-blur-md shadow-xs"
+        >
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
@@ -595,7 +598,7 @@ export function ApiGraphCanvas({
         </div>
 
         {/* Legend Overlay */}
-        <div className="absolute bottom-3 left-3 z-10 hidden sm:flex items-center gap-3 rounded-lg border border-slate-200/80 bg-white/90 px-3 py-1.5 text-[10px] font-medium text-slate-600 backdrop-blur-xs shadow-xs">
+        <div data-export-ignore="true" className="export-ignore absolute bottom-3 left-3 z-10 hidden sm:flex items-center gap-3 rounded-lg border border-slate-200/80 bg-white/90 px-3 py-1.5 text-[10px] font-medium text-slate-600 backdrop-blur-xs shadow-xs">
           <span className="font-semibold text-slate-800">Layers:</span>
           <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-slate-900"></span> Ingress</span>
           <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-indigo-500"></span> Controllers</span>
@@ -641,7 +644,7 @@ export function ApiGraphCanvas({
 
       {/* Endpoint Inspector Slide-Over Panel */}
       {activeEndpoint && (
-        <aside className="w-80 md:w-96 shrink-0 border-l border-slate-200 bg-white p-5 overflow-y-auto flex flex-col justify-between shadow-xl">
+        <aside data-export-ignore="true" className="export-ignore w-80 md:w-96 shrink-0 border-l border-slate-200 bg-white p-5 overflow-y-auto flex flex-col justify-between shadow-xl">
           <div className="space-y-5">
             <div className="flex items-start justify-between gap-2">
               <div>

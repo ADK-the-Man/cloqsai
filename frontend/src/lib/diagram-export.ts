@@ -1,8 +1,8 @@
 /**
- * Diagram Export Utility for CLOQS AI Architecture Canvas.
+ * Diagram Export Utility for CLOQS AI Architecture & API Topology Canvases.
  * Supports:
- * - High-Res PNG (Raster for slides and reports)
- * - Scalable Vector SVG (Vector for Figma, Adobe Illustrator, Inkscape)
+ * - High-Res PNG (Clean canvas without toolbars/buttons)
+ * - Scalable Vector SVG (Clean vector without toolbars/buttons)
  * - Draw.io / Diagrams.net XML (.drawio format - fully editable visual graph)
  * - Architecture JSON Spec
  */
@@ -10,19 +10,33 @@
 import { toPng, toSvg } from 'html-to-image'
 
 export async function downloadCanvasAsPng(containerEl: HTMLElement, filename = 'cloud-architecture.png') {
+  // Query all overlay elements that should NEVER appear in exported image
+  const ignoredEls = Array.from(
+    containerEl.querySelectorAll<HTMLElement>(
+      '.export-ignore, [data-export-ignore="true"], .react-flow__controls, .react-flow__minimap, .react-flow__attribution, .react-flow__panel'
+    )
+  )
+
+  // Temporarily hide them to guarantee 100% clean export across all browsers
+  const prevDisplays = ignoredEls.map((el) => el.style.display)
+  ignoredEls.forEach((el) => {
+    el.style.display = 'none'
+  })
+
   try {
     const dataUrl = await toPng(containerEl, {
       backgroundColor: '#ffffff',
-      quality: 0.95,
+      quality: 0.98,
       pixelRatio: 2,
       filter: (node: HTMLElement) => {
-        // Exclude floating controls and overlays from screenshot
         if (node.classList) {
           if (
+            node.classList.contains('export-ignore') ||
             node.classList.contains('react-flow__controls') ||
             node.classList.contains('react-flow__minimap') ||
             node.classList.contains('react-flow__attribution') ||
-            node.dataset?.exportIgnore === 'true'
+            node.dataset?.exportIgnore === 'true' ||
+            node.getAttribute?.('data-export-ignore') === 'true'
           ) {
             return false
           }
@@ -39,20 +53,38 @@ export async function downloadCanvasAsPng(containerEl: HTMLElement, filename = '
   } catch (error) {
     console.error('Failed to export PNG', error)
     throw error
+  } finally {
+    // Always restore visibility immediately
+    ignoredEls.forEach((el, idx) => {
+      el.style.display = prevDisplays[idx]
+    })
   }
 }
 
 export async function downloadCanvasAsSvg(containerEl: HTMLElement, filename = 'cloud-architecture.svg') {
+  const ignoredEls = Array.from(
+    containerEl.querySelectorAll<HTMLElement>(
+      '.export-ignore, [data-export-ignore="true"], .react-flow__controls, .react-flow__minimap, .react-flow__attribution, .react-flow__panel'
+    )
+  )
+
+  const prevDisplays = ignoredEls.map((el) => el.style.display)
+  ignoredEls.forEach((el) => {
+    el.style.display = 'none'
+  })
+
   try {
     const dataUrl = await toSvg(containerEl, {
       backgroundColor: '#ffffff',
       filter: (node: HTMLElement) => {
         if (node.classList) {
           if (
+            node.classList.contains('export-ignore') ||
             node.classList.contains('react-flow__controls') ||
             node.classList.contains('react-flow__minimap') ||
             node.classList.contains('react-flow__attribution') ||
-            node.dataset?.exportIgnore === 'true'
+            node.dataset?.exportIgnore === 'true' ||
+            node.getAttribute?.('data-export-ignore') === 'true'
           ) {
             return false
           }
@@ -69,6 +101,10 @@ export async function downloadCanvasAsSvg(containerEl: HTMLElement, filename = '
   } catch (error) {
     console.error('Failed to export SVG', error)
     throw error
+  } finally {
+    ignoredEls.forEach((el, idx) => {
+      el.style.display = prevDisplays[idx]
+    })
   }
 }
 
@@ -95,8 +131,8 @@ export function downloadAsDrawio(
       const label = `${escapeXml(data.name || node.id)}\n${escapeXml(data.region || '')}`
       const x = Math.round(node.position?.x || 100)
       const y = Math.round(node.position?.y || 100)
-      const width = 220
-      const height = 75
+      const width = 280
+      const height = 80
 
       let fillColor = '#ffffff'
       let strokeColor = '#94a3b8'

@@ -359,34 +359,72 @@ export function ArchitectureDiagram({
   const handleAutoArrange = useCallback(() => {
     if (!nodes || nodes.length === 0) return
 
-    // Categorize into architectural layers
+    // Categorize into clean architectural layers
     const tierIngress: Node[] = []
     const tierCompute: Node[] = []
-    const tierCacheMsg: Node[] = []
-    const tierDatabase: Node[] = []
-    const tierSecurityOps: Node[] = []
+    const tierDataDB: Node[] = []
+    const tierDataCache: Node[] = []
+    const tierDataStorage: Node[] = []
+    const tierOps: Node[] = []
 
     nodes.forEach((n) => {
       const fam = (n.data?.service_family || '').toLowerCase()
       const name = (n.data?.name || '').toLowerCase()
 
-      if (fam === 'networking' || name.includes('load balancer') || name.includes('alb') || name.includes('cdn') || name.includes('waf')) {
+      if (
+        fam === 'networking' ||
+        name.includes('load balancer') ||
+        name.includes('alb') ||
+        name.includes('cdn') ||
+        name.includes('waf') ||
+        name.includes('gateway')
+      ) {
         tierIngress.push(n)
-      } else if (fam === 'database' && (name.includes('redis') || name.includes('cache') || name.includes('memcached'))) {
-        tierCacheMsg.push(n)
-      } else if (fam === 'messaging' || name.includes('sqs') || name.includes('kafka') || name.includes('sns')) {
-        tierCacheMsg.push(n)
-      } else if (fam === 'database' || fam === 'storage' || name.includes('rds') || name.includes('s3') || name.includes('aurora') || name.includes('postgres')) {
-        tierDatabase.push(n)
-      } else if (fam === 'security' || fam === 'monitoring' || name.includes('secret') || name.includes('kms')) {
-        tierSecurityOps.push(n)
+      } else if (
+        name.includes('redis') ||
+        name.includes('cache') ||
+        name.includes('memcached') ||
+        fam === 'messaging' ||
+        name.includes('sqs') ||
+        name.includes('kafka')
+      ) {
+        tierDataCache.push(n)
+      } else if (
+        fam === 'storage' ||
+        name.includes('s3') ||
+        name.includes('blob') ||
+        name.includes('opensearch')
+      ) {
+        tierDataStorage.push(n)
+      } else if (
+        fam === 'database' ||
+        name.includes('rds') ||
+        name.includes('postgres') ||
+        name.includes('mysql') ||
+        name.includes('mongo') ||
+        name.includes('aurora')
+      ) {
+        tierDataDB.push(n)
+      } else if (
+        fam === 'security' ||
+        fam === 'monitoring' ||
+        name.includes('cloudwatch') ||
+        name.includes('secret') ||
+        name.includes('key vault') ||
+        name.includes('monitor')
+      ) {
+        tierOps.push(n)
       } else {
         tierCompute.push(n)
       }
     })
 
-    const nodeWidth = 310
-    const xGap = 50
+    // Combine all data, cache, and storage into Tier 3 side-by-side:
+    // Left: Primary DBs, Middle: In-Memory Caches & Queues, Right: Object Storage Lakes
+    const tierData = [...tierDataDB, ...tierDataCache, ...tierDataStorage]
+
+    const nodeWidth = 300
+    const xGap = 60
     const canvasCenterX = 550
 
     const layoutTier = (tierNodes: Node[], y: number) => {
@@ -403,16 +441,15 @@ export function ArchitectureDiagram({
 
     const arranged: Node[] = [
       ...layoutTier(tierIngress, 40),
-      ...layoutTier(tierCompute, 200),
-      ...layoutTier(tierCacheMsg, 360),
-      ...layoutTier(tierDatabase, 520),
-      ...layoutTier(tierSecurityOps, 680),
+      ...layoutTier(tierCompute, 240),
+      ...layoutTier(tierData, 480),
+      ...layoutTier(tierOps, 720),
     ]
 
     setNodes(arranged)
     if (onChange) onChange({ nodes: arranged, edges })
     rfInstance?.fitView({ padding: 0.2, duration: 400 })
-    toast.success('Architecture tidied into multi-tier topology!')
+    toast.success('Architecture tidied into clean multi-tier topology!')
   }, [nodes, edges, onChange, rfInstance])
 
   // + Add Component from Palette
@@ -586,8 +623,11 @@ export function ArchitectureDiagram({
         />
       </ReactFlow>
 
-      {/* Top Floating Control Bar */}
-      <div className="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      {/* Top Floating Control Bar - Ignored on Image/SVG Export */}
+      <div
+        data-export-ignore="true"
+        className="export-ignore absolute top-3 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none"
+      >
         {/* Left Action Toolbar */}
         <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-md pointer-events-auto">
           {/* + Add Component */}
@@ -739,7 +779,10 @@ export function ArchitectureDiagram({
 
       {/* Interactive Node Inspector Panel (Slides in when node is clicked) */}
       {selectedNode && (
-        <div className="absolute top-16 right-3 bottom-3 w-80 sm:w-96 bg-white/98 backdrop-blur-md rounded-xl border border-slate-300 shadow-2xl z-20 flex flex-col p-4 animate-in slide-in-from-right duration-200">
+        <div
+          data-export-ignore="true"
+          className="export-ignore absolute top-16 right-3 bottom-3 w-80 sm:w-96 bg-white/98 backdrop-blur-md rounded-xl border border-slate-300 shadow-2xl z-20 flex flex-col p-4 animate-in slide-in-from-right duration-200"
+        >
           <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200">
@@ -874,7 +917,7 @@ export function ArchitectureDiagram({
 
       {/* Add Component Palette Modal */}
       {isAddModalOpen && (
-        <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-xs z-30 flex items-center justify-center p-4">
+        <div data-export-ignore="true" className="export-ignore absolute inset-0 bg-slate-900/30 backdrop-blur-xs z-30 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-5 space-y-4 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
