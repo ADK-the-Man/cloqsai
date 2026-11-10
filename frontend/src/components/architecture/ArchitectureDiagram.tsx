@@ -38,8 +38,19 @@ import {
   Trash2,
   Check,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Download,
+  Image,
+  FileCode,
+  FileText,
+  ChevronDown
 } from 'lucide-react'
+import {
+  downloadCanvasAsPng,
+  downloadCanvasAsSvg,
+  downloadAsDrawio,
+  downloadAsJson
+} from '@/lib/diagram-export'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -219,12 +230,14 @@ interface ArchitectureDiagramProps {
   initialNodes: Node[]
   initialEdges: Edge[]
   onChange?: (data: { nodes: Node[]; edges: Edge[] }) => void
+  projectName?: string
 }
 
 export function ArchitectureDiagram({
   initialNodes,
   initialEdges,
   onChange,
+  projectName = 'Cloud Architecture',
 }: ArchitectureDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
@@ -247,6 +260,8 @@ export function ArchitectureDiagram({
   const [isTrafficSimulating, setIsTrafficSimulating] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [editingNodeData, setEditingNodeData] = useState<{ name: string; purpose: string; region: string } | null>(null)
 
   // Keep internal state aligned if parent switches provider tab
@@ -460,11 +475,60 @@ export function ArchitectureDiagram({
     }
   }
 
+  // Export handlers
+  const handleExportPng = async () => {
+    if (!containerRef.current) return
+    setIsExporting(true)
+    setIsExportMenuOpen(false)
+    try {
+      const cleanName = (projectName || 'cloud-architecture').toLowerCase().replace(/\s+/g, '-')
+      await downloadCanvasAsPng(containerRef.current, `${cleanName}-topology.png`)
+      toast.success('High-resolution PNG exported!')
+    } catch (err) {
+      toast.error('Failed to export PNG image')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleExportSvg = async () => {
+    if (!containerRef.current) return
+    setIsExporting(true)
+    setIsExportMenuOpen(false)
+    try {
+      const cleanName = (projectName || 'cloud-architecture').toLowerCase().replace(/\s+/g, '-')
+      await downloadCanvasAsSvg(containerRef.current, `${cleanName}-topology.svg`)
+      toast.success('Vector SVG exported (editable in Figma & Illustrator)!')
+    } catch (err) {
+      toast.error('Failed to export SVG')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleExportDrawio = () => {
+    setIsExportMenuOpen(false)
+    try {
+      const cleanName = (projectName || 'cloud-architecture').toLowerCase().replace(/\s+/g, '-')
+      downloadAsDrawio(nodes, edges, `${projectName || 'Cloud'} Architecture`, `${cleanName}-diagram.drawio`)
+      toast.success('Draw.io diagram exported! Open and edit in app.diagrams.net')
+    } catch (err) {
+      toast.error('Failed to export Draw.io file')
+    }
+  }
+
+  const handleExportJson = () => {
+    setIsExportMenuOpen(false)
+    const cleanName = (projectName || 'cloud-architecture').toLowerCase().replace(/\s+/g, '-')
+    downloadAsJson({ nodes, edges, generated_at: new Date().toISOString() }, `${cleanName}-spec.json`)
+    toast.success('Architecture JSON spec downloaded!')
+  }
+
   return (
     <div
       ref={containerRef}
       className={`w-full rounded-xl border border-slate-200 bg-slate-50/50 shadow-inner relative overflow-hidden transition-all duration-300 ${
-        isFullscreen ? 'h-screen fixed inset-0 z-50 rounded-none' : 'h-[520px] sm:h-[620px]'
+        isFullscreen ? 'h-screen fixed inset-0 z-50 rounded-none' : 'h-[560px] sm:h-[680px]'
       }`}
     >
       {/* ReactFlow Interactive Canvas */}
@@ -572,10 +636,79 @@ export function ArchitectureDiagram({
 
         {/* Right Canvas Helpers */}
         <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-md pointer-events-auto">
-          <div className="flex items-center gap-1 text-[11px] text-slate-500 px-2 hidden md:flex">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Drag handles to wire components &bull; Backspace to sever</span>
+          {/* Export Menu Dropdown */}
+          <div className="relative">
+            <Button
+              size="sm"
+              onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+              disabled={isExporting}
+              className="h-7 text-xs bg-slate-900 hover:bg-slate-800 text-white font-semibold gap-1 px-2.5 cursor-pointer shadow-xs"
+            >
+              <Download className={`h-3.5 w-3.5 ${isExporting ? 'animate-bounce' : ''}`} />
+              <span>Export</span>
+              <ChevronDown className="h-3 w-3 opacity-70" />
+            </Button>
+
+            {isExportMenuOpen && (
+              <div
+                data-export-ignore="true"
+                className="absolute right-0 top-9 w-60 bg-white rounded-xl border border-slate-200 shadow-xl py-1.5 z-50 text-xs animate-in fade-in-50 duration-100"
+              >
+                <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                  Export Architecture
+                </div>
+                <button
+                  type="button"
+                  onClick={handleExportPng}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  <Image className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="font-semibold block text-slate-900">PNG Image</span>
+                    <span className="text-[10px] text-slate-400">High-res raster for slides & docs</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportSvg}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  <FileCode className="h-4 w-4 text-blue-600 shrink-0" />
+                  <div>
+                    <span className="font-semibold block text-slate-900">SVG Vector</span>
+                    <span className="text-[10px] text-slate-400">Editable in Figma & Illustrator</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportDrawio}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  <FileText className="h-4 w-4 text-amber-500 shrink-0" />
+                  <div>
+                    <span className="font-semibold block text-slate-900">Draw.io (.drawio)</span>
+                    <span className="text-[10px] text-slate-400">Open & edit in app.diagrams.net</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportJson}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors cursor-pointer border-t border-slate-100 mt-1"
+                >
+                  <Layers className="h-4 w-4 text-purple-600 shrink-0" />
+                  <div>
+                    <span className="font-semibold block text-slate-900">Architecture JSON</span>
+                    <span className="text-[10px] text-slate-400">Raw nodes & edges topology</span>
+                  </div>
+                </button>
+              </div>
+            )}
           </div>
+
+          <div className="h-4 w-[1px] bg-slate-200 mx-0.5" />
 
           {/* Fullscreen Button */}
           <Button
