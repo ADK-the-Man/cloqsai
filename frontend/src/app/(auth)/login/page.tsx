@@ -67,17 +67,29 @@ export default function LoginPage() {
     setError(null)
     setSuccessMsg(null)
     setDemoLoading(true)
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 6000)
+
     try {
       const res = await fetch('/api/v1/auth/demo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
+
       if (!res.ok) {
+        const fallbackCtrl = new AbortController()
+        const fallbackTimeout = setTimeout(() => fallbackCtrl.abort(), 4000)
         const fallbackRes = await fetch('/api/v1/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: 'demo@cloudcost.ai', password: 'Cq9!2J#xQUAWU*9ZI1W9' }),
+          signal: fallbackCtrl.signal,
         })
+        clearTimeout(fallbackTimeout)
+
         if (!fallbackRes.ok) {
           throw new Error('Could not authenticate demo user')
         }
@@ -92,7 +104,12 @@ export default function LoginPage() {
         window.location.href = '/dashboard'
       }, 300)
     } catch (err: any) {
-      setError(err.message || 'Demo sign-in failed. Please enter credentials below.')
+      clearTimeout(timeoutId)
+      if (err.name === 'AbortError') {
+        setError('Sign-in request timed out. Please retry or enter email/password below.')
+      } else {
+        setError(err.message || 'Demo sign-in failed. Please enter credentials below.')
+      }
     } finally {
       setDemoLoading(false)
     }

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   FileText,
   Network,
+  Waypoints,
   GitCompare,
   DownloadCloud,
   CheckCircle2,
@@ -33,20 +34,27 @@ export function Sidebar({ projectId, projectName }: SidebarProps) {
     },
     {
       title: '2. Architecture',
-      description: 'Visual Service Graph',
+      description: 'Cloud Infrastructure Graph',
       href: `/projects/${projectId}/architecture`,
       icon: Network,
       pattern: `/projects/${projectId}/architecture`,
     },
     {
-      title: '3. Scenarios',
+      title: '3. API Topology',
+      description: 'Route & Dependency Graph',
+      href: `/projects/${projectId}/api-graph`,
+      icon: Waypoints,
+      pattern: `/projects/${projectId}/api-graph`,
+    },
+    {
+      title: '4. Scenarios',
       description: 'Cost & HA Trade-offs',
       href: `/projects/${projectId}/scenarios`,
       icon: GitCompare,
       pattern: `/projects/${projectId}/scenarios`,
     },
     {
-      title: '4. Estimates & Exports',
+      title: '5. Estimates & Exports',
       description: 'CSV & XLSX Calculator',
       href: `/projects/${projectId}/estimates`,
       icon: DownloadCloud,

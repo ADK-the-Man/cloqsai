@@ -17,6 +17,7 @@ from models.schemas import (
     ProjectListResponse,
     GitHubAnalysisRequest,
     GitHubAnalysisResponse,
+    ApiTopologyResponse,
 )
 from pricing.freshness_engine import compute_freshness_report
 
@@ -130,6 +131,36 @@ async def analyze_github_repo(
 @router.get("/projects/{id}", response_model=ProjectResponse)
 async def get_project(project: Project = Depends(get_project_or_404)):
     return ProjectResponse.model_validate(project)
+
+
+@router.get("/projects/{id}/api-topology", response_model=ApiTopologyResponse)
+async def get_project_api_topology(
+    id: uuid.UUID,
+    project: Project = Depends(get_project_or_404),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns the API topology and endpoint dependency DAG for the project.
+    """
+    from ai.stages.api_topology_generator import build_project_api_topology
+    from models.db import Requirements, Architecture
+
+    req_res = await db.execute(select(Requirements).where(Requirements.project_id == project.id))
+    req_item = req_res.scalars().first()
+
+    arch_res = await db.execute(select(Architecture).where(Architecture.project_id == project.id))
+    arch_item = arch_res.scalars().first()
+
+    components = []
+    if arch_item and isinstance(arch_item.services, list):
+        components = [s.get("name", "") for s in arch_item.services if isinstance(s, dict)]
+
+    return await build_project_api_topology(
+        project_id=project.id,
+        project_name=project.name,
+        project_desc=project.description,
+        components=components
+    )
 
 
 @router.patch("/projects/{id}", response_model=ProjectResponse)

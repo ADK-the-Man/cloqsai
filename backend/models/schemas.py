@@ -542,5 +542,48 @@ class HealthResponse(BaseModel):
     ai_configured: bool
 
 
+# ── API Topology & Route Graph ────────────────────────────────────────────────
+
+class ApiEndpointItem(BaseModel):
+    id: str
+    method: str  # GET, POST, PUT, PATCH, DELETE, OPTIONS
+    path: str
+    summary: str
+    controller: str
+    auth_required: bool = True
+    auth_type: str = "Bearer JWT"
+    tags: List[str] = Field(default_factory=list)
+    downstream_targets: List[str] = Field(default_factory=list)
+    est_rps: int = 120
+    p95_latency_ms: int = 45
+
+
+class ApiTopologyGraphNode(BaseModel):
+    id: str
+    type: str  # ingressNode | controllerNode | endpointNode | resourceNode
+    position: Dict[str, float]
+    data: Dict[str, Any]
+
+
+class ApiTopologyGraphEdge(BaseModel):
+    id: str
+    source: str
+    target: str
+    label: Optional[str] = None
+    animated: bool = False
+    style: Optional[Dict[str, Any]] = None
+
+
+class ApiTopologyResponse(BaseModel):
+    project_id: uuid.UUID
+    repo_name: Optional[str] = None
+    endpoints_count: int
+    controllers_count: int
+    methods_breakdown: Dict[str, int]
+    nodes: List[ApiTopologyGraphNode]
+    edges: List[ApiTopologyGraphEdge]
+    endpoints: List[ApiEndpointItem]
+
+
 # Update forward references
 EstimateJobResponse.model_rebuild()

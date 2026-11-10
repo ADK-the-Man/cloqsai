@@ -22,7 +22,8 @@ import {
   TrendingUp,
   ExternalLink,
   ShieldCheck,
-  Network
+  Network,
+  Waypoints,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Navbar } from '@/components/layout/Navbar'
@@ -469,6 +470,18 @@ export default function DashboardPage() {
                             >
                               <Network className="h-3 w-3 text-slate-500" />
                               <span className="hidden sm:inline">Arch</span>
+                            </Button>
+
+                            {/* Direct API Topology Button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs px-2 text-slate-700 hover:text-indigo-600 hover:border-indigo-300 cursor-pointer gap-1"
+                              onClick={() => router.push(`/projects/${proj.id}/api-graph`)}
+                              title="View API Route Topology & Dependencies"
+                            >
+                              <Waypoints className="h-3 w-3 text-indigo-500" />
+                              <span className="hidden sm:inline">APIs</span>
                             </Button>
 
                             {/* Delete */}
