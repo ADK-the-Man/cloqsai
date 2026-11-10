@@ -153,10 +153,10 @@ def parse_workload_signals(req: Dict[str, Any]) -> Dict[str, Any]:
     ]
     has_rds = check_feature_intent(raw_text, rds_pos, rds_neg) or bool(req.get("has_rds")) or ("db_engine" in req and req["db_engine"] and str(req["db_engine"]).lower() != "none")
 
-    # Airflow / MWAA / Orchestration
+    # Airflow / MWAA / Orchestration (requires explicit Airflow/DAG intent; container orchestration should never trigger MWAA)
     airflow_pos = [
         "airflow", "mwaa", "managed airflow", "dag", "dags", "apache airflow",
-        "workflow orchestration", "orchestration"
+        "airflow dag", "airflow dags", "workflow orchestration dag"
     ]
     airflow_neg = [
         "no airflow", "without airflow", "no mwaa", "no dags", "without dags"

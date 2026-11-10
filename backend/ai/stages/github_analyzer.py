@@ -127,7 +127,7 @@ def inspect_manifest_contents(
         add_finding(
             "compute",
             "Multi-Service Docker Compose",
-            f"Configured multi-container orchestrations in {compose_files[0]}",
+            f"Configured multi-container service stack in {compose_files[0]}",
             compose_files[0]
         )
         if "postgres" in compose_content.lower():
