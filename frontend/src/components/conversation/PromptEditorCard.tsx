@@ -15,6 +15,133 @@ interface PromptEditorCardProps {
   className?: string
 }
 
+function FormattedPromptView({ text }: { text: string }) {
+  if (!text) {
+    return (
+      <span className="italic text-slate-400">
+        No initial natural language prompt recorded. Click Edit Prompt to add one.
+      </span>
+    )
+  }
+
+  const lines = text.split('\n')
+  const elements: React.ReactNode[] = []
+  let currentBullets: React.ReactNode[] = []
+
+  const flushBullets = (keyPrefix: string) => {
+    if (currentBullets.length > 0) {
+      elements.push(
+        <ul key={`${keyPrefix}-list`} className="space-y-1.5 my-2 pl-1">
+          {currentBullets}
+        </ul>
+      )
+      currentBullets = []
+    }
+  }
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim()
+    if (!trimmed) {
+      flushBullets(`empty-${idx}`)
+      return
+    }
+
+    if (trimmed.toLowerCase().startsWith('budget:')) {
+      flushBullets(`budget-${idx}`)
+      elements.push(
+        <div
+          key={`budget-${idx}`}
+          className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold my-1.5"
+        >
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>{trimmed}</span>
+        </div>
+      )
+      return
+    }
+
+    if (
+      trimmed.endsWith(':') &&
+      !trimmed.startsWith('-') &&
+      (trimmed.toLowerCase().includes('stack') ||
+        trimmed.toLowerCase().includes('requirement') ||
+        trimmed.toLowerCase().includes('constraint') ||
+        trimmed.toLowerCase().includes('parameter') ||
+        trimmed.toLowerCase().includes('component'))
+    ) {
+      flushBullets(`header-${idx}`)
+      elements.push(
+        <h5
+          key={`header-${idx}`}
+          className="text-xs font-bold text-slate-900 uppercase tracking-wider mt-3 mb-1.5 flex items-center gap-1.5"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+          <span>{trimmed.replace(/:$/, '')}</span>
+        </h5>
+      )
+      return
+    }
+
+    if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+      const content = trimmed.replace(/^[-*]\s*/, '')
+      const matchComp = content.match(/^\*\*([^*]+)\*\*\s*(?:\(([^)]+)\))?:\s*(.*)$/)
+      if (matchComp) {
+        const [, title, cat, desc] = matchComp
+        currentBullets.push(
+          <li key={`b-${idx}`} className="text-xs text-slate-700 flex items-start gap-2">
+            <span className="text-blue-500 font-bold shrink-0 mt-0.5">•</span>
+            <div className="flex-1 leading-snug">
+              <span className="font-bold text-slate-900">{title}</span>
+              {cat && (
+                <span className="ml-1.5 text-[10px] uppercase font-semibold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                  {cat}
+                </span>
+              )}
+              {desc && <span className="ml-1.5 text-slate-600">: {desc}</span>}
+            </div>
+          </li>
+        )
+        return
+      }
+
+      const matchColon = content.match(/^([^:]+):\s*(.*)$/)
+      if (matchColon) {
+        const [, key, val] = matchColon
+        const cleanKey = key.replace(/\*\*/g, '')
+        currentBullets.push(
+          <li key={`b-${idx}`} className="text-xs text-slate-700 flex items-start gap-2">
+            <span className="text-blue-500 font-bold shrink-0 mt-0.5">•</span>
+            <div className="flex-1 leading-snug">
+              <span className="font-semibold text-slate-900">{cleanKey}:</span>
+              <span className="ml-1.5 text-slate-600">{val}</span>
+            </div>
+          </li>
+        )
+        return
+      }
+
+      currentBullets.push(
+        <li key={`b-${idx}`} className="text-xs text-slate-700 flex items-start gap-2">
+          <span className="text-blue-500 font-bold shrink-0 mt-0.5">•</span>
+          <span className="text-slate-600 leading-snug">{content}</span>
+        </li>
+      )
+      return
+    }
+
+    flushBullets(`p-${idx}`)
+    const cleanText = trimmed.replace(/\*\*/g, '')
+    elements.push(
+      <p key={`p-${idx}`} className="text-xs text-slate-700 leading-relaxed mb-2">
+        {cleanText}
+      </p>
+    )
+  })
+
+  flushBullets('end')
+  return <div className="space-y-1">{elements}</div>
+}
+
 export function PromptEditorCard({
   projectId,
   initialPrompt: propPrompt,
@@ -229,12 +356,8 @@ export function PromptEditorCard({
               </div>
             </div>
           ) : (
-            <div className="text-xs text-slate-700 leading-relaxed font-sans bg-white/80 p-2.5 rounded-md border border-slate-200/70 select-text whitespace-pre-wrap">
-              {prompt || (
-                <span className="italic text-slate-400">
-                  No initial natural language prompt recorded. Click Edit Prompt to add one.
-                </span>
-              )}
+            <div className="text-xs text-slate-700 leading-relaxed font-sans bg-white/95 p-3 rounded-lg border border-slate-200/80 shadow-2xs select-text">
+              <FormattedPromptView text={prompt} />
             </div>
           )}
         </div>

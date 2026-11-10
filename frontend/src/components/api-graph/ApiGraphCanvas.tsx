@@ -30,6 +30,7 @@ import {
   Play,
   Pause,
   Maximize2,
+  Minimize2,
   Copy,
   Check,
   Search,
@@ -316,6 +317,37 @@ export function ApiGraphCanvas({
   const [copiedCurl, setCopiedCurl] = useState(false)
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const handleToggleFullscreen = () => {
+    if (!containerRef.current) return
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => {
+        setIsFullscreen(true)
+        setTimeout(() => reactFlowInstance?.fitView({ padding: 0.15, duration: 400 }), 120)
+      }).catch(() => {
+        setIsFullscreen(!isFullscreen)
+        setTimeout(() => reactFlowInstance?.fitView({ padding: 0.15, duration: 400 }), 120)
+      })
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false)
+        setTimeout(() => reactFlowInstance?.fitView({ padding: 0.2, duration: 400 }), 120)
+      }).catch(() => {
+        setIsFullscreen(false)
+      })
+    }
+  }
+
+  React.useEffect(() => {
+    const handleFsChange = () => {
+      const isFs = Boolean(document.fullscreenElement)
+      setIsFullscreen(isFs)
+      setTimeout(() => reactFlowInstance?.fitView({ padding: isFs ? 0.15 : 0.2, duration: 300 }), 120)
+    }
+    document.addEventListener('fullscreenchange', handleFsChange)
+    return () => document.removeEventListener('fullscreenchange', handleFsChange)
+  }, [reactFlowInstance])
 
   const handleExportPng = async () => {
     if (!containerRef.current) return
@@ -447,9 +479,47 @@ export function ApiGraphCanvas({
   }
 
   return (
-    <div className="flex h-[calc(100vh-8.5rem)] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50/50 shadow-sm">
+    <div className={`flex w-full overflow-hidden transition-all duration-300 ${
+      isFullscreen
+        ? 'fixed inset-0 z-50 h-screen rounded-none bg-slate-900 border-0'
+        : 'h-[calc(100vh-8.5rem)] rounded-xl border border-slate-200 bg-slate-50/50 shadow-sm'
+    }`}>
       {/* Canvas Area */}
       <div ref={containerRef} className="relative flex-1 h-full">
+        {/* Fullscreen Presentation Mode HUD Header */}
+        {isFullscreen && (
+          <div
+            data-export-ignore="true"
+            className="export-ignore absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-2 bg-slate-900/95 text-white rounded-full shadow-2xl backdrop-blur-md border border-slate-700/80 text-xs animate-in fade-in-50 slide-in-from-top-4 duration-200"
+          >
+            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="font-bold tracking-wide text-slate-100 truncate max-w-[240px]">{projectName}</span>
+            <span className="text-slate-400 font-mono text-[11px] hidden sm:inline">• Live API Topology Presentation</span>
+            <Badge className="bg-indigo-600/90 text-white text-[10px] px-2 py-0.5 border-0 font-semibold">
+              {endpoints.length} Endpoints
+            </Badge>
+            <div className="h-4 w-[1px] bg-slate-700 mx-1" />
+            <button
+              type="button"
+              onClick={() => reactFlowInstance?.fitView({ padding: 0.15, duration: 300 })}
+              className="text-slate-300 hover:text-white flex items-center gap-1 text-[11px] font-medium transition-colors cursor-pointer"
+              title="Auto-frame graph on screen"
+            >
+              <Maximize2 className="h-3 w-3 text-indigo-400" />
+              <span className="hidden sm:inline">Fit Screen</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleFullscreen}
+              className="text-slate-300 hover:text-rose-400 flex items-center gap-1 text-[11px] font-medium transition-colors ml-1 cursor-pointer"
+              title="Exit Presentation Mode (Esc)"
+            >
+              <Minimize2 className="h-3 w-3 text-rose-400" />
+              <span>Exit (Esc)</span>
+            </button>
+          </div>
+        )}
+
         {/* Top Control Bar - Ignored on Image/SVG Export */}
         <div
           data-export-ignore="true"
@@ -518,6 +588,22 @@ export function ApiGraphCanvas({
             >
               <Maximize2 className="h-3.5 w-3.5" />
               Fit View
+            </Button>
+
+            {/* Fullscreen Presentation Mode Button */}
+            <Button
+              size="sm"
+              variant={isFullscreen ? 'default' : 'outline'}
+              onClick={handleToggleFullscreen}
+              className={`h-8 text-xs font-semibold gap-1.5 px-3 cursor-pointer shadow-xs ${
+                isFullscreen
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                  : 'text-slate-700 hover:text-indigo-600 hover:border-indigo-300'
+              }`}
+              title={isFullscreen ? 'Exit Presentation Mode (Esc)' : 'Enter Fullscreen Presentation Mode'}
+            >
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5 text-indigo-600" />}
+              <span>{isFullscreen ? 'Exit Screen' : 'Present'}</span>
             </Button>
 
             {/* Export Menu Dropdown */}

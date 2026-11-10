@@ -16,7 +16,11 @@ import ReactFlow, {
   Connection,
   MarkerType,
   ConnectionMode,
-  ReactFlowInstance
+  ReactFlowInstance,
+  BaseEdge,
+  EdgeProps,
+  getSmoothStepPath,
+  getBezierPath,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import {
@@ -137,22 +141,24 @@ function ServiceNodeComponent({ data, selected }: NodeProps) {
   }
 
   const getBorderColor = () => {
-    if (selected) return 'border-blue-600 ring-2 ring-blue-400/50 bg-white shadow-xl scale-[1.02]'
+    if (selected) return 'border-blue-600 ring-2 ring-blue-500 bg-white shadow-xl scale-[1.02]'
     switch (data.service_family) {
+      case 'compute':
+        return 'border-blue-400 bg-white hover:border-blue-500 hover:shadow-md ring-1 ring-blue-100'
       case 'database':
-        return 'border-emerald-300 bg-emerald-50/40 hover:border-emerald-400 hover:shadow-md'
+        return 'border-emerald-400 bg-white hover:border-emerald-500 hover:shadow-md ring-1 ring-emerald-100'
       case 'storage':
-        return 'border-amber-300 bg-amber-50/40 hover:border-amber-400 hover:shadow-md'
+        return 'border-amber-400 bg-white hover:border-amber-500 hover:shadow-md ring-1 ring-amber-100'
       case 'networking':
-        return 'border-blue-300 bg-blue-50/40 hover:border-blue-400 hover:shadow-md'
+        return 'border-indigo-400 bg-white hover:border-indigo-500 hover:shadow-md ring-1 ring-indigo-100'
       case 'monitoring':
-        return 'border-purple-300 bg-purple-50/40 hover:border-purple-400 hover:shadow-md'
+        return 'border-purple-400 bg-white hover:border-purple-500 hover:shadow-md ring-1 ring-purple-100'
       case 'security':
-        return 'border-red-300 bg-red-50/40 hover:border-red-400 hover:shadow-md'
+        return 'border-rose-400 bg-white hover:border-rose-500 hover:shadow-md ring-1 ring-rose-100'
       case 'messaging':
-        return 'border-amber-300 bg-amber-50/40 hover:border-amber-400 hover:shadow-md'
+        return 'border-orange-400 bg-white hover:border-orange-500 hover:shadow-md ring-1 ring-orange-100'
       default:
-        return 'border-slate-300 bg-white hover:border-slate-400 hover:shadow-md'
+        return 'border-slate-300 bg-white hover:border-slate-400 hover:shadow-md ring-1 ring-slate-100'
     }
   }
 
@@ -169,7 +175,7 @@ function ServiceNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`group relative w-[280px] sm:w-[300px] rounded-xl border-2 p-3.5 shadow-xs transition-all duration-150 select-none cursor-grab active:cursor-grabbing ${getBorderColor()}`}
+      className={`group relative w-[280px] sm:w-[300px] rounded-xl border-2 p-3.5 shadow-md bg-white z-10 transition-all duration-150 select-none cursor-grab active:cursor-grabbing ${getBorderColor()}`}
     >
       {/* Clean single handles - hidden until hover to eliminate cluttered dots */}
       <Handle
@@ -240,6 +246,63 @@ function ServiceNodeComponent({ data, selected }: NodeProps) {
   )
 }
 
+// Collision-free adaptive edge router for modern multi-tier cloud architectures
+function CleanArchitectureEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+}: EdgeProps) {
+  const deltaY = targetY - sourceY
+  const deltaX = Math.abs(targetX - sourceX)
+
+  let edgePath = ''
+  // If the connection spans more than 1 tier vertically (>240px) or has large horizontal offset:
+  // Render with a graceful bezier curve to curve outside intermediate tier cards
+  if (deltaY > 240 || (deltaX > 380 && deltaY > 140)) {
+    const [path] = getBezierPath({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+      curvature: 0.28,
+    })
+    edgePath = path
+  } else {
+    const [path] = getSmoothStepPath({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+      borderRadius: 16,
+      offset: 24,
+    })
+    edgePath = path
+  }
+
+  return (
+    <BaseEdge
+      id={id}
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={{
+        ...style,
+        stroke: style.stroke || '#2563eb',
+        strokeWidth: style.strokeWidth || 2,
+      }}
+    />
+  )
+}
+
 interface ArchitectureDiagramProps {
   initialNodes: Node[]
   initialEdges: Edge[]
@@ -256,13 +319,21 @@ export function ArchitectureDiagram({
   const containerRef = useRef<HTMLDivElement>(null)
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
   const nodeTypes = useMemo(() => ({ serviceNode: ServiceNodeComponent }), [])
+  const edgeTypes = useMemo(
+    () => ({
+      cleanEdge: CleanArchitectureEdge,
+      smoothstep: CleanArchitectureEdge,
+      default: CleanArchitectureEdge,
+    }),
+    []
+  )
 
   // Nodes & Edges State
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes || [])
   const [edges, setEdges, onEdgesChange] = useEdgesState(
     (initialEdges || []).map((e) => ({
       ...e,
-      type: e.type || 'smoothstep',
+      type: 'cleanEdge',
       animated: e.animated ?? true,
       style: { stroke: '#2563eb', strokeWidth: 2, ...e.style },
       markerEnd: e.markerEnd || { type: MarkerType.ArrowClosed, color: '#2563eb' },
@@ -287,7 +358,7 @@ export function ArchitectureDiagram({
     setEdges(
       (initialEdges || []).map((e) => ({
         ...e,
-        type: e.type || 'smoothstep',
+        type: 'cleanEdge',
         animated: isTrafficSimulating ? true : (e.animated ?? true),
         style: isTrafficSimulating
           ? { stroke: '#8b5cf6', strokeWidth: 2.5, strokeDasharray: '6,6' }
@@ -516,15 +587,37 @@ export function ArchitectureDiagram({
     toast.success('Node specifications updated and saved')
   }
 
-  // Toggle Fullscreen
+  // Toggle Fullscreen / Presentation Mode
   const handleToggleFullscreen = () => {
     if (!containerRef.current) return
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
+      containerRef.current.requestFullscreen().then(() => {
+        setIsFullscreen(true)
+        setTimeout(() => rfInstance?.fitView({ padding: 0.15, duration: 400 }), 120)
+      }).catch(() => {
+        setIsFullscreen(!isFullscreen)
+        setTimeout(() => rfInstance?.fitView({ padding: 0.15, duration: 400 }), 120)
+      })
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {})
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false)
+        setTimeout(() => rfInstance?.fitView({ padding: 0.2, duration: 400 }), 120)
+      }).catch(() => {
+        setIsFullscreen(false)
+      })
     }
   }
+
+  // Synchronize fullscreenchange event (e.g. user presses Esc key on keyboard)
+  React.useEffect(() => {
+    const handleFsChange = () => {
+      const isFs = Boolean(document.fullscreenElement)
+      setIsFullscreen(isFs)
+      setTimeout(() => rfInstance?.fitView({ padding: isFs ? 0.15 : 0.2, duration: 300 }), 120)
+    }
+    document.addEventListener('fullscreenchange', handleFsChange)
+    return () => document.removeEventListener('fullscreenchange', handleFsChange)
+  }, [rfInstance])
 
   // Export handlers
   const handleExportPng = async () => {
@@ -579,14 +672,49 @@ export function ArchitectureDiagram({
     <div
       ref={containerRef}
       className={`w-full rounded-xl border border-slate-200 bg-slate-50/50 shadow-inner relative overflow-hidden transition-all duration-300 ${
-        isFullscreen ? 'h-screen fixed inset-0 z-50 rounded-none' : 'h-[560px] sm:h-[680px]'
+        isFullscreen ? 'h-screen fixed inset-0 z-50 rounded-none bg-slate-900' : 'h-[560px] sm:h-[680px]'
       }`}
     >
+      {/* Fullscreen Presentation Mode HUD Header */}
+      {isFullscreen && (
+        <div
+          data-export-ignore="true"
+          className="export-ignore absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-2 bg-slate-900/95 text-white rounded-full shadow-2xl backdrop-blur-md border border-slate-700/80 text-xs animate-in fade-in-50 slide-in-from-top-4 duration-200"
+        >
+          <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <span className="font-bold tracking-wide text-slate-100 truncate max-w-[240px]">{projectName}</span>
+          <span className="text-slate-400 font-mono text-[11px] hidden sm:inline">• Live Architecture Presentation</span>
+          <Badge className="bg-blue-600/90 hover:bg-blue-600 text-white text-[10px] px-2 py-0.5 border-0 font-semibold">
+            {nodes.length} Components
+          </Badge>
+          <div className="h-4 w-[1px] bg-slate-700 mx-1" />
+          <button
+            type="button"
+            onClick={() => rfInstance?.fitView({ padding: 0.15, duration: 300 })}
+            className="text-slate-300 hover:text-white flex items-center gap-1 text-[11px] font-medium transition-colors cursor-pointer"
+            title="Auto-frame diagram on screen"
+          >
+            <Maximize2 className="h-3 w-3 text-blue-400" />
+            <span className="hidden sm:inline">Fit Screen</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleToggleFullscreen}
+            className="text-slate-300 hover:text-rose-400 flex items-center gap-1 text-[11px] font-medium transition-colors ml-1 cursor-pointer"
+            title="Exit Presentation Mode (Esc)"
+          >
+            <Minimize2 className="h-3 w-3 text-rose-400" />
+            <span>Exit (Esc)</span>
+          </button>
+        </div>
+      )}
+
       {/* ReactFlow Interactive Canvas */}
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
@@ -608,7 +736,7 @@ export function ArchitectureDiagram({
         deleteKeyCode={['Backspace', 'Delete']}
         connectionLineStyle={{ stroke: '#2563eb', strokeWidth: 2, strokeDasharray: '5,5' }}
         defaultEdgeOptions={{
-          type: 'smoothstep',
+          type: 'cleanEdge',
           animated: true,
           style: { stroke: '#2563eb', strokeWidth: 2 },
           markerEnd: { type: MarkerType.ArrowClosed, color: '#2563eb' },
@@ -764,15 +892,20 @@ export function ArchitectureDiagram({
 
           <div className="h-4 w-[1px] bg-slate-200 mx-0.5" />
 
-          {/* Fullscreen Button */}
+          {/* Fullscreen Presentation Mode Button */}
           <Button
             size="sm"
-            variant="ghost"
+            variant={isFullscreen ? 'default' : 'outline'}
             onClick={handleToggleFullscreen}
-            className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900 cursor-pointer"
-            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+            className={`h-7 text-xs font-semibold gap-1 px-2.5 cursor-pointer shadow-xs ${
+              isFullscreen
+                ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                : 'text-slate-700 hover:text-blue-600 hover:border-blue-300'
+            }`}
+            title={isFullscreen ? 'Exit Presentation Mode (Esc)' : 'Enter Fullscreen Presentation Mode'}
           >
-            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5 text-blue-600" />}
+            <span className="hidden sm:inline">{isFullscreen ? 'Exit Screen' : 'Present'}</span>
           </Button>
         </div>
       </div>

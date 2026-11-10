@@ -42,7 +42,35 @@ export default function EstimatesPage() {
     freshness: null,
   })
   const [isSyncingRates, setIsSyncingRates] = useState(false)
+  const [isGeneratingLiveLink, setIsGeneratingLiveLink] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const autoTriggeredRef = React.useRef(false)
+
+  const handleGenerateLiveEstimates = async () => {
+    setIsGeneratingLiveLink(true)
+    try {
+      const token = getToken()
+      const targetScenarios = scenarios.filter((s) => s.scenario_type === 'recommended')
+      const targetIds = targetScenarios.length > 0 ? targetScenarios.map((s) => s.id) : scenarios.map((s) => s.id)
+      if (targetIds.length > 0) {
+        await fetch(`/api/v1/projects/${id}/estimates`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ scenario_ids: targetIds }),
+        })
+        toast.success('Live cloud estimate pipeline started!')
+        await fetchEstimates()
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to start estimate calculation')
+    } finally {
+      setIsGeneratingLiveLink(false)
+    }
+  }
 
   const handleSyncRates = async (scenarioId: string) => {
     setIsSyncingRates(true)
@@ -208,6 +236,14 @@ export default function EstimatesPage() {
     return () => clearInterval(interval)
   }, [id])
 
+  useEffect(() => {
+    // Automatically trigger estimate calculation if scenarios exist but no estimate jobs were run
+    if (!loading && scenarios.length > 0 && jobs.length === 0 && !autoTriggeredRef.current) {
+      autoTriggeredRef.current = true
+      handleGenerateLiveEstimates()
+    }
+  }, [loading, scenarios, jobs])
+
   const handleRetry = async (jobId: string) => {
     try {
       const token = getToken()
@@ -347,20 +383,34 @@ export default function EstimatesPage() {
                   </div>
                   <div>
                     {hasAwsData ? (
-                      <a
-                        href={awsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-xs transition-colors"
-                      >
-                        <span>Open Live AWS Estimate</span>
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    ) : (
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">
-                        <RefreshCw className="h-3 w-3 animate-spin" />
-                        <span>Generating Live AWS Link...</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <a
+                          href={awsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                        >
+                          <span>Open Live AWS Estimate</span>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                        <span className="text-[10px] text-emerald-700 bg-emerald-100 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
+                          Active Share Link
+                        </span>
                       </div>
+                    ) : isGeneratingLiveLink || (awsJob?.status === 'pending' || awsJob?.status === 'in_progress') ? (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-100 text-amber-900 text-xs font-medium border border-amber-200">
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin text-amber-700" />
+                        <span>Connecting to AWS Pricing Calculator MCP...</span>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={handleGenerateLiveEstimates}
+                        className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold gap-1.5 shadow-xs cursor-pointer h-8"
+                      >
+                        <Zap className="h-3.5 w-3.5" />
+                        <span>Generate Live AWS Estimate Link</span>
+                      </Button>
                     )}
                   </div>
                 </CardContent>
