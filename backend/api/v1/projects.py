@@ -159,6 +159,7 @@ async def get_project_api_topology(
         project_id=project.id,
         project_name=project.name,
         project_desc=project.description,
+        raw_requirements=req_item.raw_text if req_item else None,
         components=components
     )
 
