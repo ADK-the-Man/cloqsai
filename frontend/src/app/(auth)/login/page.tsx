@@ -88,7 +88,9 @@ export default function LoginPage() {
         setToken(data.access_token)
       }
       setSuccessMsg('Signed in as Demo User! Redirecting to workspace...')
-      setTimeout(() => router.push('/dashboard'), 400)
+      setTimeout(() => {
+        window.location.href = '/dashboard'
+      }, 300)
     } catch (err: any) {
       setError(err.message || 'Demo sign-in failed. Please enter credentials below.')
     } finally {
@@ -179,7 +181,7 @@ export default function LoginPage() {
         setSuccessMsg('Account created successfully! Redirecting to dashboard...')
         setTimeout(() => router.push('/dashboard'), 800)
       } else {
-        router.push('/dashboard')
+        window.location.href = '/dashboard'
       }
     } catch (err: any) {
       setError(err.message || 'Operation failed')
